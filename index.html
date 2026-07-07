@@ -235,6 +235,14 @@ svg.linechart{display:block;overflow:visible}
 .loading-spinner{display:flex;align-items:center;justify-content:center;gap:10px;padding:32px;color:var(--sub);font-size:13px}
 .spinner{width:18px;height:18px;border:2px solid var(--border2);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* DAY OVERRIDE */
+.override-chip{font-size:10px;color:var(--orange);border:1px solid rgba(255,146,72,.35);border-radius:10px;padding:2px 7px;margin-left:6px;font-weight:600}
+.workout-opt{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:7px;cursor:pointer;transition:border-color .15s}
+.workout-opt:active{border-color:var(--acc)}
+.workout-opt.selected{border-color:var(--acc);background:var(--acc-dim)}
+.workout-opt-name{font-size:13px;font-weight:600}
+.workout-opt-check{color:var(--acc);font-size:15px;opacity:0}
+.workout-opt.selected .workout-opt-check{opacity:1}
 </style>
 </head>
 <body>
@@ -383,6 +391,20 @@ svg.linechart{display:block;overflow:visible}
 
 </div><!-- /appShell -->
 
+<!-- DAY OVERRIDE MODAL -->
+<div class="modal-overlay" id="overrideModal" onclick="closeBgModal('overrideModal',event)">
+  <div class="modal-box">
+    <div class="modal-title">Change Workout</div>
+    <div id="overrideModalDate" style="font-size:12px;color:var(--sub);font-family:var(--font-mono);margin-bottom:14px"></div>
+    <div id="overrideWorkoutOpts"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn-primary" onclick="confirmOverride()" style="flex:2">Confirm</button>
+      <button class="btn-ghost" onclick="clearOverride()" style="flex:1">Reset to Split</button>
+    </div>
+    <button class="btn-ghost" onclick="closeModal('overrideModal')" style="width:100%;margin-top:8px">Cancel</button>
+  </div>
+</div>
+
 <!-- SPLIT MODAL -->
 <div class="modal-overlay" id="splitModal" onclick="closeBgModal('splitModal',event)">
   <div class="modal-box">
@@ -455,12 +477,12 @@ import {
 
 // ── PASTE YOUR FIREBASE CONFIG HERE ──────────────────
 const firebaseConfig = {
-  apiKey: "AIzaSyBdsodayqlwYGEv-fGIw3N2r8pg8CuTaDg",
+  apiKey: "REPLACE_WITH_YOUR_API_KEY",
   authDomain: "liftlog-b4764.firebaseapp.com",
   projectId: "liftlog-b4764",
-  storageBucket: "liftlog-b4764.firebasestorage.app",
-  messagingSenderId: "602234708327",
-  appId: "1:602234708327:web:0a96e185730b836a4fcfc2"
+  storageBucket: "liftlog-b4764.appspot.com",
+  messagingSenderId: "REPLACE_WITH_SENDER_ID",
+  appId: "REPLACE_WITH_APP_ID"
 };
 // ─────────────────────────────────────────────────────
 
@@ -796,44 +818,68 @@ function refreshAllViews(){
 }
 
 // ── TODAY VIEW ──
+function getWorkoutForDate(ds){
+  const overrides=getPrefs().dayOverrides||{};
+  if(overrides[ds]) return overrides[ds];
+  const dow=new Date(ds+'T12:00:00').getDay();
+  return SPLITS[getPrefs().split||'A'].days[dow];
+}
+
 function renderToday(){
   const now=new Date();const dow=now.getDay();
+  const ds=todayStr();
   const split=SPLITS[getPrefs().split||'A'];
-  const workout=split.days[dow];const isRest=workout==='Rest';
+  const splitWorkout=split.days[dow];
+  const overrides=getPrefs().dayOverrides||{};
+  const workout=overrides[ds]||splitWorkout;
+  const isOverridden=!!overrides[ds];
+  const isRest=workout==='Rest';
   document.getElementById('splitBadge').textContent=split.label;
   let cta='';
   if(isRest){
-    cta=`<div style="margin-top:10px;font-size:13px;color:var(--sub);padding:10px;background:var(--s2);border-radius:var(--r-sm);text-align:center">Rest day 💤 — recover and grow</div>`;
+    cta=`<div style="margin-top:10px;font-size:13px;color:var(--sub);padding:10px;background:var(--s2);border-radius:var(--r-sm);text-align:center">Rest day 💤 — recover and grow</div>
+    <div class="today-cta" style="margin-top:8px"><button class="btn-ghost" style="flex:1;font-size:12px" onclick="openOverrideModal('${ds}','${workout}')">🔄 Train anyway</button></div>`;
   } else {
-    const logged=getSessions().find(s=>s.date===todayStr()&&s.workout===workout);
+    const logged=getSessions().find(s=>s.date===ds);
     cta=logged
-      ?`<div class="today-cta"><span style="font-size:12px;color:var(--green)">✅ Logged</span><button class="btn-ghost" style="flex:1" onclick="nav('log')">Add / Edit</button></div>`
-      :`<div class="today-cta"><button class="btn-primary" onclick="quickLog('${workout}')">Log Today's ${workout}</button></div>`;
+      ?`<div class="today-cta"><span style="font-size:12px;color:var(--green)">✅ Logged</span><button class="btn-ghost" style="flex:1" onclick="nav('log')">Add / Edit</button><button class="btn-ghost" style="font-size:12px;padding:9px 10px" onclick="openOverrideModal('${ds}','${workout}')">🔄</button></div>`
+      :`<div class="today-cta"><button class="btn-primary" onclick="quickLog('${workout}')" style="flex:1">Log Today's ${workout}</button><button class="btn-ghost" style="font-size:12px;padding:9px 10px" title="Change workout" onclick="openOverrideModal('${ds}','${workout}')">🔄</button></div>`;
   }
   const dn=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dow];
   document.getElementById('todayCard').innerHTML=`
     <div class="today-day">${dn}</div>
     <div class="today-date">${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}</div>
-    <div class="today-workout"><span class="workout-chip ${chipClass(workout)}">${workout}</span></div>
+    <div class="today-workout">
+      <span class="workout-chip ${chipClass(workout)}">${workout}</span>
+      ${isOverridden?`<span class="override-chip">custom</span>`:''}
+    </div>
     ${cta}`;
 }
 
 function renderWeekStrip(){
   const now=new Date();const sessSet=new Set(getSessions().map(s=>s.date));
-  const split=SPLITS[getPrefs().split||'A'];
+  const overrides=getPrefs().dayOverrides||{};
   let html='';
   for(let i=-3;i<=3;i++){
     const d=new Date(now);d.setDate(now.getDate()+i);
     const ds=d.toISOString().split('T')[0];const dow=d.getDay();
-    const workout=split.days[dow];const isRest=workout==='Rest';
-    html+=`<div class="day-chip${i===0?' today':''}${isRest?' rest-day':''}${sessSet.has(ds)?' has-log':''}" onclick="dayClick('${ds}','${workout}')">
-      <div class="day-name">${DAY_NAMES[dow]}</div><div class="day-num">${d.getDate()}</div>
+    const workout=getWorkoutForDate(ds);
+    const isRest=workout==='Rest';
+    const isOverridden=!!overrides[ds];
+    html+=`<div class="day-chip${i===0?' today':''}${isRest?' rest-day':''}${sessSet.has(ds)?' has-log':''}" onclick="dayClick('${ds}','${workout}')" title="${workout}${isOverridden?' (custom)':''}">
+      <div class="day-name">${DAY_NAMES[dow]}${isOverridden?'*':''}</div><div class="day-num">${d.getDate()}</div>
     </div>`;
   }
   document.getElementById('weekStrip').innerHTML=html;
 }
 
-function dayClick(ds,workout){if(workout==='Rest')return;nav('log');initLogForm(ds,workout)}
+function dayClick(ds,workout){
+  if(workout==='Rest'){
+    // on rest days, tapping opens override option
+    openOverrideModal(ds,workout);return;
+  }
+  nav('log');initLogForm(ds,workout);
+}
 
 function renderRecent(){
   const sorted=[...getSessions()].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
@@ -1192,6 +1238,60 @@ function copyExport(){
   navigator.clipboard.writeText(text).then(()=>toast('📋 Copied!')).catch(()=>{
     const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('📋 Copied!');
   });
+}
+
+// ── DAY OVERRIDE ──
+let _overrideDate=null;
+let _overridePending=null;
+
+const WORKOUT_LIST=['Chest + Biceps','Legs','Shoulders (Heavy)','Shoulders (Volume)','Back + Triceps','Arms','Full Body','Rest'];
+
+function openOverrideModal(ds,currentWorkout){
+  _overrideDate=ds;_overridePending=currentWorkout;
+  const d=new Date(ds+'T12:00:00');
+  const dn=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
+  document.getElementById('overrideModalDate').textContent=`${dn}, ${fmtDate(ds)} — currently: ${currentWorkout}`;
+  document.getElementById('overrideWorkoutOpts').innerHTML=WORKOUT_LIST.map(w=>`
+    <div class="workout-opt${w===currentWorkout?' selected':''}" onclick="selectOverrideOpt(this,'${w}')">
+      <span class="workout-chip ${chipClass(w)}" style="font-size:11px;padding:3px 10px">${w}</span>
+      <span class="workout-opt-check">✓</span>
+    </div>`).join('');
+  openModal('overrideModal');
+}
+
+function selectOverrideOpt(el,workout){
+  document.querySelectorAll('.workout-opt').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected');
+  _overridePending=workout;
+}
+
+function confirmOverride(){
+  if(!_overrideDate||!_overridePending)return;
+  const prefs={...getPrefs()};
+  prefs.dayOverrides=prefs.dayOverrides||{};
+  prefs.dayOverrides[_overrideDate]=_overridePending;
+  window._prefs=prefs;
+  window._savePrefs(prefs);
+  closeModal('overrideModal');
+  renderToday();renderWeekStrip();
+  toast(`✅ ${fmtDate(_overrideDate)} → ${_overridePending}`);
+  // if overriding today and going to log, pre-select the new workout
+  if(_overrideDate===todayStr()&&_overridePending!=='Rest'){
+    // refresh log form workout selector if already on log tab
+    const wSel=document.getElementById('logWorkout');
+    if(wSel)for(let i=0;i<wSel.options.length;i++){if(wSel.options[i].value===_overridePending){wSel.selectedIndex=i;break}}
+  }
+}
+
+function clearOverride(){
+  if(!_overrideDate)return;
+  const prefs={...getPrefs()};
+  if(prefs.dayOverrides){delete prefs.dayOverrides[_overrideDate]}
+  window._prefs=prefs;
+  window._savePrefs(prefs);
+  closeModal('overrideModal');
+  renderToday();renderWeekStrip();
+  toast('↩️ Reset to split schedule');
 }
 
 // ── SPLIT MODAL ──
