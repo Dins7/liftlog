@@ -357,6 +357,33 @@ svg.linechart{display:block;overflow:visible}
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important}}
+/* ── GLOBAL MINI TIMER (visible on all tabs) ── */
+#globalTimerStrip{
+  position:fixed;top:52px;left:0;right:0;z-index:90;
+  background:rgba(10,10,11,0.95);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  padding:0 16px;
+  height:0;overflow:hidden;
+  transition:height 0.25s cubic-bezier(0.4,0,0.2,1);
+  display:flex;align-items:center;gap:12px;
+}
+#globalTimerStrip.visible{height:44px;}
+.gts-icon{font-size:16px;flex-shrink:0}
+.gts-time{
+  font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--acc);
+  letter-spacing:2px;line-height:1;transition:color 0.2s;min-width:50px;
+}
+.gts-time.warning{color:var(--orange)}
+.gts-time.done{color:var(--green)}
+.gts-bar-wrap{flex:1;height:3px;background:var(--s3);border-radius:3px;overflow:hidden}
+.gts-bar-fill{height:100%;background:var(--acc);border-radius:3px;transition:width 0.25s linear}
+.gts-bar-fill.warning{background:var(--orange)}
+.gts-actions{display:flex;gap:6px;flex-shrink:0}
+.gts-btn{background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--sub);font-size:11px;font-weight:600;padding:4px 10px;cursor:pointer;font-family:'Inter',sans-serif;transition:var(--transition)}
+.gts-btn:active{transform:scale(0.94)}
+.gts-btn.stop{border-color:rgba(255,79,79,0.3);color:var(--red)}
+
 /* custom split editor */
 #customSplitEditor select{font-size:12px;padding:7px 10px;background:var(--s2)}
 .split-opt#splitOptC .split-opt-sub{color:var(--orange)}
@@ -778,7 +805,8 @@ svg.linechart{display:block;overflow:visible}
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, collection, setDoc, deleteDoc, getDocs, onSnapshot, writeBatch, enableIndexedDbPersistence }
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  doc, collection, setDoc, deleteDoc, getDocs, onSnapshot, writeBatch }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -792,9 +820,18 @@ const firebaseConfig = {
 
 const app=initializeApp(firebaseConfig);
 const auth=getAuth(app);
-const db=getFirestore(app);
 
-enableIndexedDbPersistence(db).catch(e=>console.warn('Offline:',e.code));
+// Use modern persistent cache (replaces deprecated enableIndexedDbPersistence)
+// This gives true offline support and instant load from local cache on iOS Safari
+let db;
+try {
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})
+  });
+} catch(e) {
+  // fallback if already initialized
+  db = getFirestore(app);
+}
 
 let currentUser=null;
 let unsubSessions=null,unsubPrefs=null,unsubCustom=null;
@@ -845,32 +882,41 @@ window.signOutUser=async function(){
 };
 
 function attachListeners(uid){
-  // ── INSTANT RENDER from localStorage cache (no wait for Firestore) ──
+  // ── LAYER 1: Render instantly from localStorage safety cache ──
   try{
-    const cached=localStorage.getItem('ll_cache_sess');
-    const cachedPrefs=localStorage.getItem('ll_cache_prefs');
-    if(cached){window._sessions=JSON.parse(cached);}
-    if(cachedPrefs){window._prefs=JSON.parse(cachedPrefs);applySettingsFromPrefs();}
+    const cs=localStorage.getItem('ll_cache_sess');
+    const cp=localStorage.getItem('ll_cache_prefs');
+    if(cs){window._sessions=JSON.parse(cs);}
+    if(cp){window._prefs=JSON.parse(cp);applySettingsFromPrefs();}
     renderToday();renderWeekStrip();renderRecent();
   }catch(e){}
 
-  // ── THEN attach Firestore listeners (updates silently in background) ──
-  unsubSessions=onSnapshot(sessCol(uid),{includeMetadataChanges:false},snap=>{
+  // ── LAYER 2: Firestore onSnapshot fires from local IndexedDB cache first (instant),
+  //    then again when server responds (silent update). Best of both worlds. ──
+  unsubSessions=onSnapshot(sessCol(uid),snap=>{
+    // fromCache=true means this fired from local disk — still use it for instant display
     window._sessions=snap.docs.map(d=>({...d.data(),id:d.id}));
-    // cache locally for next instant load
     try{localStorage.setItem('ll_cache_sess',JSON.stringify(window._sessions));}catch(e){}
     refreshAllViews();
-  },err=>{console.error('Sessions:',err);});
+  },err=>{
+    console.error('Sessions listener error:',err);
+    // on error, try a one-time getDocs as fallback
+    getDocs(sessCol(uid)).then(snap=>{
+      window._sessions=snap.docs.map(d=>({...d.data(),id:d.id}));
+      try{localStorage.setItem('ll_cache_sess',JSON.stringify(window._sessions));}catch(e){}
+      refreshAllViews();
+    }).catch(e2=>console.error('getDocs fallback failed:',e2));
+  });
 
-  unsubPrefs=onSnapshot(prefsDoc(uid),{includeMetadataChanges:false},snap=>{
+  unsubPrefs=onSnapshot(prefsDoc(uid),snap=>{
     window._prefs=snap.exists()?snap.data():{split:'A'};
     try{localStorage.setItem('ll_cache_prefs',JSON.stringify(window._prefs));}catch(e){}
     applySettingsFromPrefs();refreshAllViews();
-  },err=>console.error('Prefs:',err));
+  },err=>console.error('Prefs listener:',err));
 
-  unsubCustom=onSnapshot(customCol(uid),{includeMetadataChanges:false},snap=>{
+  unsubCustom=onSnapshot(customCol(uid),snap=>{
     window._customMachines=snap.docs.map(d=>({...d.data(),id:d.id}));
-  },err=>console.error('Custom:',err));
+  },err=>console.error('Custom listener:',err));
 }
 function detachListeners(){
   if(unsubSessions){unsubSessions();unsubSessions=null;}
@@ -1464,13 +1510,15 @@ function buzzDone(){
 
 function showTimer(){
   document.getElementById('timerBar').classList.add('active');
-  if(timerEndTime&&!timerDone)tickTimer(); // just refresh if running
-  // Don't auto-start — user picks duration
+  if(timerEndTime&&!timerDone)tickTimer();
 }
 function stopTimer(){
   clearInterval(timerInterval);timerInterval=null;
   timerEndTime=null;timerPausedAt=null;timerPaused=false;timerDone=false;
   document.getElementById('timerBar').classList.remove('active');
+  // hide global strip
+  document.getElementById('globalTimerStrip').classList.remove('visible');
+  document.querySelectorAll('.view').forEach(v=>v.style.paddingTop='');
 }
 function startTimer(secs){
   clearInterval(timerInterval);
@@ -1478,31 +1526,53 @@ function startTimer(secs){
   timerEndTime=Date.now()+secs*1000;
   timerPaused=false;timerPausedAt=null;timerDone=false;
   document.getElementById('timerPauseBtn').textContent='Pause';
+  const gtsPause=document.getElementById('gtsPauseBtn');
+  if(gtsPause)gtsPause.textContent='Pause';
   document.getElementById('timerBar').classList.add('active');
+  // show global strip on all views
+  document.getElementById('globalTimerStrip').classList.add('visible');
+  document.querySelectorAll('.view').forEach(v=>v.style.paddingTop='44px');
   tickTimer();
-  timerInterval=setInterval(tickTimer,250); // poll 4x/sec — stays accurate after background
+  timerInterval=setInterval(tickTimer,250);
 }
 function tickTimer(){
   if(!timerEndTime)return;
   const el=document.getElementById('timerDisplay');
   const fill=document.getElementById('timerFill');
-  if(!el||!fill)return;
-  if(timerPaused){
-    // Just refresh UI, don't tick
-    const rem=Math.max(0,Math.round((timerEndTime-Date.now())/1000));
-    _renderTimerUI(rem,el,fill);
-    return;
+  const gtsTime=document.getElementById('gtsTime');
+  const gtsFill=document.getElementById('gtsBarFill');
+
+  const rem=Math.max(0,Math.round((timerEndTime-(timerPaused?timerPausedAt:Date.now()))/1000));
+
+  // Update in-page timer
+  if(el&&fill)_renderTimerUI(rem,el,fill);
+
+  // Update global strip
+  if(gtsTime&&gtsFill){
+    const m=Math.floor(rem/60),s=rem%60;
+    gtsTime.textContent=`${m}:${s.toString().padStart(2,'0')}`;
+    gtsTime.className='gts-time'+(rem<=30&&rem>0?' warning':rem===0?' done':'');
+    const pct=timerDuration>0?(rem/timerDuration*100).toFixed(1):'0';
+    gtsFill.style.width=pct+'%';
+    gtsFill.className='gts-bar-fill'+(rem<=30&&rem>0?' warning':'');
   }
-  const rem=Math.max(0,Math.round((timerEndTime-Date.now())/1000));
-  _renderTimerUI(rem,el,fill);
+
+  if(timerPaused)return;
+
   if(rem<=0&&!timerDone){
     timerDone=true;
     clearInterval(timerInterval);timerInterval=null;
-    el.className='timer-display done';
-    el.textContent='GO!';
-    fill.style.width='0%';
+    if(el){el.className='timer-display done';el.textContent='GO!';}
+    if(fill)fill.style.width='0%';
+    if(gtsTime){gtsTime.textContent='GO!';gtsTime.className='gts-time done';}
+    if(gtsFill)gtsFill.style.width='0%';
     buzzDone();
     toast('Rest over — GO! 💪','success');
+    // auto-hide global strip after 4s
+    setTimeout(()=>{
+      document.getElementById('globalTimerStrip').classList.remove('visible');
+      document.querySelectorAll('.view').forEach(v=>v.style.paddingTop='');
+    },4000);
   }
 }
 function _renderTimerUI(rem,el,fill){
@@ -1516,17 +1586,20 @@ function _renderTimerUI(rem,el,fill){
 }
 function togglePause(){
   if(!timerEndTime)return;
+  const label=timerPaused?'Pause':'Resume';
   if(timerPaused){
-    // Resume: shift end time forward by how long we were paused
     const pausedMs=Date.now()-timerPausedAt;
     timerEndTime+=pausedMs;
     timerPaused=false;timerPausedAt=null;
     document.getElementById('timerPauseBtn').textContent='Pause';
+    const gb=document.getElementById('gtsPauseBtn');if(gb)gb.textContent='Pause';
     timerInterval=setInterval(tickTimer,250);
   } else {
     timerPaused=true;timerPausedAt=Date.now();
     clearInterval(timerInterval);timerInterval=null;
     document.getElementById('timerPauseBtn').textContent='Resume';
+    const gb=document.getElementById('gtsPauseBtn');if(gb)gb.textContent='Resume';
+    tickTimer(); // update display to frozen time
   }
 }
 // Resume timer display when page becomes visible again (from background)
