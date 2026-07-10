@@ -78,10 +78,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .split-badge{font-size:10px;font-weight:600;font-family:var(--font-mono);color:var(--sub);border:1px solid var(--border2);border-radius:20px;padding:4px 10px;cursor:pointer;transition:var(--transition);white-space:nowrap;background:var(--s2)}
 .split-badge:hover{border-color:var(--acc);color:var(--acc);background:var(--acc-dim)}
 .split-badge:active{transform:scale(0.96)}
-.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--green);transition:background 0.4s;box-shadow:0 0 6px var(--green);flex-shrink:0}
-.sync-dot.syncing{background:var(--orange);animation:syncPulse 1s ease-in-out infinite;box-shadow:0 0 6px var(--orange)}
-.sync-dot.offline{background:var(--muted);box-shadow:none}
-@keyframes syncPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
+/* sync dot removed */
 .user-avatar{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--border2);cursor:pointer;object-fit:cover;flex-shrink:0;transition:var(--transition)}
 .user-avatar:hover{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-glow)}
 .user-avatar-placeholder{width:30px;height:30px;border-radius:50%;background:var(--s3);border:1.5px solid var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--acc);flex-shrink:0;transition:var(--transition)}
@@ -193,15 +190,17 @@ textarea{resize:none;line-height:1.5}
 .pr-hint{font-size:11px;color:var(--green);min-height:16px;margin-bottom:5px;font-weight:500}
 
 /* ── SET ROW ── */
-.set-row{display:grid;grid-template-columns:24px 1fr 1fr 38px 24px;gap:7px;align-items:end;margin-bottom:8px}
+.set-row{display:grid;grid-template-columns:24px 1fr 1fr 36px 24px;gap:6px;align-items:end;margin-bottom:8px}
 .set-label{font-family:var(--font-mono);font-size:11px;color:var(--acc);padding-bottom:11px;text-align:center;font-weight:600}
 .set-row .field{margin-bottom:0}
 .set-row input[type=number]{font-size:16px;text-align:center;padding:10px 4px;font-weight:600}
-.drop-col{display:flex;flex-direction:column;align-items:center;gap:4px}
-.drop-col label{font-size:9px;color:var(--muted)}
-.drop-col input[type=checkbox]{width:18px;height:18px;accent-color:var(--acc);cursor:pointer}
+/* drop-col replaced by drop-btn */
 .rm-set-btn{background:transparent;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding-bottom:8px;transition:var(--transition);border-radius:4px}
 .rm-set-btn:hover{color:var(--red)}
+/* drop set button — large tap target */
+.drop-btn{min-width:36px;height:36px;background:var(--s3);border:1.5px solid var(--border2);border-radius:6px;color:var(--muted);font-size:11px;font-weight:800;cursor:pointer;transition:var(--transition);letter-spacing:.5px;margin-bottom:6px;font-family:'Inter',sans-serif}
+.drop-btn:active{transform:scale(0.92)}
+.drop-btn-on{background:rgba(255,79,79,0.18);border-color:var(--red);color:var(--red) !important}
 .pr-flash{border-color:var(--acc)!important;box-shadow:0 0 0 3px var(--acc-dim)!important}
 .add-set-btn{background:transparent;border:1px dashed var(--border3);border-radius:var(--r-xs);color:var(--sub);font-size:12px;font-weight:600;padding:8px;width:100%;cursor:pointer;transition:var(--transition);margin-top:3px;font-family:'Inter',sans-serif}
 .add-set-btn:hover{border-color:var(--acc);color:var(--acc);background:var(--acc-dim)}
@@ -466,7 +465,6 @@ svg.linechart{display:block;overflow:visible}
   <div class="nav-inner">
     <div class="logo">LIFT<em>LOG</em></div>
     <div class="nav-right">
-      <div class="sync-dot" id="syncDot" title="Sync status"></div>
       <div class="split-badge" onclick="openModal('splitModal')" id="splitBadge">Split A</div>
       <div class="user-avatar-placeholder" id="userAvatar" onclick="openModal('userModal')">D</div>
     </div>
@@ -519,7 +517,7 @@ svg.linechart{display:block;overflow:visible}
           <option>Chest + Biceps</option><option>Legs</option>
           <option>Shoulders (Heavy)</option><option>Shoulders (Volume)</option>
           <option>Back + Triceps</option><option>Arms</option>
-          <option>Full Body</option><option>Other</option>
+          <option>Full Body</option><option>Other</option><option>Rest</option>
         </select>
       </div>
     </div>
@@ -843,23 +841,34 @@ window.signOutUser=async function(){
   if(!confirm('Sign out?'))return;
   detachListeners();await signOut(auth);closeModal('userModal');
   window._sessions=[];window._prefs={split:'A'};window._customMachines=[];
+  try{localStorage.removeItem('ll_cache_sess');localStorage.removeItem('ll_cache_prefs');}catch(e){}
 };
 
 function attachListeners(uid){
-  setSyncStatus('syncing');
-  // show skeleton while loading
-  document.getElementById('recentList').innerHTML=`
-    <div class="skeleton-card"><div class="skel" style="height:18px;width:60%;margin-bottom:10px"></div><div class="skel" style="height:12px;width:40%"></div></div>
-    <div class="skeleton-card"><div class="skel" style="height:18px;width:50%;margin-bottom:10px"></div><div class="skel" style="height:12px;width:35%"></div></div>`;
-  unsubSessions=onSnapshot(sessCol(uid),snap=>{
+  // ── INSTANT RENDER from localStorage cache (no wait for Firestore) ──
+  try{
+    const cached=localStorage.getItem('ll_cache_sess');
+    const cachedPrefs=localStorage.getItem('ll_cache_prefs');
+    if(cached){window._sessions=JSON.parse(cached);}
+    if(cachedPrefs){window._prefs=JSON.parse(cachedPrefs);applySettingsFromPrefs();}
+    renderToday();renderWeekStrip();renderRecent();
+  }catch(e){}
+
+  // ── THEN attach Firestore listeners (updates silently in background) ──
+  unsubSessions=onSnapshot(sessCol(uid),{includeMetadataChanges:false},snap=>{
     window._sessions=snap.docs.map(d=>({...d.data(),id:d.id}));
-    refreshAllViews();setSyncStatus('ok');
-  },err=>{console.error('Sessions:',err);setSyncStatus('offline');});
-  unsubPrefs=onSnapshot(prefsDoc(uid),snap=>{
+    // cache locally for next instant load
+    try{localStorage.setItem('ll_cache_sess',JSON.stringify(window._sessions));}catch(e){}
+    refreshAllViews();
+  },err=>{console.error('Sessions:',err);});
+
+  unsubPrefs=onSnapshot(prefsDoc(uid),{includeMetadataChanges:false},snap=>{
     window._prefs=snap.exists()?snap.data():{split:'A'};
+    try{localStorage.setItem('ll_cache_prefs',JSON.stringify(window._prefs));}catch(e){}
     applySettingsFromPrefs();refreshAllViews();
   },err=>console.error('Prefs:',err));
-  unsubCustom=onSnapshot(customCol(uid),snap=>{
+
+  unsubCustom=onSnapshot(customCol(uid),{includeMetadataChanges:false},snap=>{
     window._customMachines=snap.docs.map(d=>({...d.data(),id:d.id}));
   },err=>console.error('Custom:',err));
 }
@@ -868,10 +877,7 @@ function detachListeners(){
   if(unsubPrefs){unsubPrefs();unsubPrefs=null;}
   if(unsubCustom){unsubCustom();unsubCustom=null;}
 }
-function setSyncStatus(state){
-  const dot=document.getElementById('syncDot');if(!dot)return;
-  dot.className='sync-dot'+(state==='ok'?'':' '+state);
-}
+function setSyncStatus(state){/* dot removed */}
 
 async function migrateLocalStorage(uid){
   const ls=localStorage.getItem('ll_v4'),lp=localStorage.getItem('ll_prefs2'),lc=localStorage.getItem('ll_custom2');
@@ -1033,6 +1039,10 @@ function fireConfetti(){
 // ── SETTINGS ──
 function applySettingsFromPrefs(){
   const p=getPrefs();
+  // Update split badge
+  const labels={A:'Split A · Sun Rest',B:'Split B · Sat Rest',C:'Custom Split'};
+  const badge=document.getElementById('splitBadge');
+  if(badge)badge.textContent=labels[p.split||'A']||'Split A';
   if(p.accent){
     document.documentElement.style.setProperty('--acc',p.accent);
     document.documentElement.style.setProperty('--acc2',p.accent2||'#a3cc1f');
@@ -1312,14 +1322,21 @@ function updatePRHint(id,machineName){
 function addSetRow(id,prefillW,prefillR,prefillDrop){
   const container=document.getElementById('sets-'+id);
   const sn=container.children.length+1;
-  const row=document.createElement('div');row.className='set-row';
+  const rowId='row-'+id+'-'+sn;
+  const row=document.createElement('div');row.className='set-row';row.id=rowId;
+  // Use a visible tap button for drop set instead of tiny checkbox
   row.innerHTML=`
     <span class="set-label">S${sn}</span>
     <div class="field"><label>kg</label><input type="number" step="0.5" min="0" placeholder="${prefillW!=null?prefillW:'0'}" value="${prefillW!=null?prefillW:''}" inputmode="decimal" oninput="checkPRLive('${id}',this)"></div>
     <div class="field"><label>reps</label><input type="number" min="0" placeholder="${prefillR!=null?prefillR:'0'}" value="${prefillR!=null?prefillR:''}" inputmode="numeric"></div>
-    <div class="drop-col"><label>drop</label><input type="checkbox"${prefillDrop?' checked':''}></div>
-    <button class="rm-set-btn" onclick="this.parentElement.remove()">✕</button>`;
+    <button type="button" class="drop-btn${prefillDrop?' drop-btn-on':''}" onclick="toggleDrop(this)" title="Toggle drop set" data-drop="${prefillDrop?'1':'0'}">D</button>
+    <button type="button" class="rm-set-btn" onclick="this.parentElement.remove()">✕</button>`;
   container.appendChild(row);
+}
+function toggleDrop(btn){
+  const isOn=btn.dataset.drop==='1';
+  btn.dataset.drop=isOn?'0':'1';
+  btn.classList.toggle('drop-btn-on',!isOn);
 }
 function checkPRLive(id,inp){
   const sel=document.getElementById('msel-'+id);if(!sel||!sel.value)return;
@@ -1353,10 +1370,10 @@ function saveLog(){
     block.querySelectorAll('.set-row').forEach(row=>{
       const allInputs=row.querySelectorAll('input');
       const numInputs=[...allInputs].filter(i=>i.type==='number');
-      const chk=[...allInputs].find(i=>i.type==='checkbox');
+      const dropBtn=row.querySelector('.drop-btn');
       const w=parseFloat(numInputs[0]?.value)||0;
       const r=parseInt(numInputs[1]?.value)||0;
-      const drop=chk?chk.checked:false;
+      const drop=dropBtn?dropBtn.dataset.drop==='1':false;
       sets.push({w,r,drop});
     });
     if(sets.length)newExercises.push({n:name,m:muscle,sets});
@@ -1695,7 +1712,11 @@ const WORKOUT_OPTS=['Chest + Biceps','Legs','Shoulders (Heavy)','Shoulders (Volu
 const DAY_FULL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
 function setSplit(s){
-  window._prefs={...getPrefs(),split:s};window._savePrefs(window._prefs);
+  const prefs={...getPrefs(),split:s};
+  window._prefs=prefs;
+  // cache immediately so renderToday/renderWeekStrip sees new split instantly
+  try{localStorage.setItem('ll_cache_prefs',JSON.stringify(prefs));}catch(e){}
+  window._savePrefs(prefs);
   renderSplitModal();renderToday();renderWeekStrip();
   const labels={A:'Split A · Sun Rest',B:'Split B · Sat Rest',C:'Custom Split'};
   document.getElementById('splitBadge').textContent=labels[s]||'Split A';
@@ -1703,8 +1724,12 @@ function setSplit(s){
 
 function getCustomSplitDays(){
   const p=getPrefs();
-  // fallback to Split A if no custom days defined
-  return p.customDays||{0:'Rest',1:'Chest + Biceps',2:'Legs',3:'Shoulders (Heavy)',4:'Back + Triceps',5:'Arms',6:'Shoulders (Volume)'};
+  const base={0:'Rest',1:'Chest + Biceps',2:'Legs',3:'Shoulders (Heavy)',4:'Back + Triceps',5:'Arms',6:'Shoulders (Volume)'};
+  if(!p.customDays)return base;
+  // Normalize: keys may be strings from JSON, convert to int-keyed
+  const normalized={};
+  Object.entries(p.customDays).forEach(([k,v])=>{normalized[parseInt(k)]=v;});
+  return {...base,...normalized};
 }
 
 function getWorkoutForDow(dow){
@@ -1750,10 +1775,13 @@ function renderSplitModal(){
 
 function setCustomDay(dow,workout){
   const prefs={...getPrefs()};
-  prefs.customDays=getCustomSplitDays();
-  prefs.customDays[dow]=workout;
-  window._prefs=prefs;window._savePrefs(prefs);
-  renderToday();renderWeekStrip();
+  const cd=getCustomSplitDays();
+  cd[parseInt(dow)]=workout;
+  prefs.customDays=cd;
+  window._prefs=prefs;
+  try{localStorage.setItem('ll_cache_prefs',JSON.stringify(prefs));}catch(e){}
+  window._savePrefs(prefs);
+  renderSplitModal();renderToday();renderWeekStrip();
 }
 
 // ── MODALS ──
