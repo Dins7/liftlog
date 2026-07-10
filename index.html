@@ -85,7 +85,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-h
 .user-avatar-placeholder:hover{border-color:var(--acc);background:var(--acc-dim)}
 
 /* ── BOTTOM TABS ── */
-.bot-tabs{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(10,10,11,0.94);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border-top:1px solid var(--border);display:flex;padding:8px 0 max(10px,env(safe-area-inset-bottom))}
+.bot-tabs{position:fixed;bottom:0;left:0;right:0;z-index:101;background:rgba(10,10,11,0.94);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border-top:1px solid var(--border);display:flex;padding:8px 0 max(10px,env(safe-area-inset-bottom))}
 .bot-tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px;cursor:pointer;transition:var(--transition);color:var(--muted);font-size:10px;font-weight:600;border:none;background:none;outline:none;letter-spacing:0.3px;position:relative}
 .bot-tab svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;transition:var(--transition)}
 .bot-tab.active{color:var(--acc)}
@@ -338,7 +338,7 @@ svg.linechart{display:block;overflow:visible}
 .export-area{background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;font-family:var(--font-mono);font-size:11px;white-space:pre-wrap;word-break:break-word;color:var(--text2);max-height:280px;overflow-y:auto;margin-bottom:10px;line-height:1.6}
 
 /* ── TOAST ── */
-.toast{position:fixed;bottom:88px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--s1);color:var(--text);border:1px solid var(--border2);font-weight:600;font-size:13px;padding:11px 22px;border-radius:24px;opacity:0;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);z-index:500;pointer-events:none;white-space:nowrap;box-shadow:var(--shadow-lg);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.toast{position:fixed;bottom:140px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--s1);color:var(--text);border:1px solid var(--border2);font-weight:600;font-size:13px;padding:11px 22px;border-radius:24px;opacity:0;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);z-index:500;pointer-events:none;white-space:nowrap;box-shadow:var(--shadow-lg);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .toast.success{background:rgba(76,216,138,0.15);border-color:rgba(76,216,138,0.3);color:var(--green)}
 .toast.error{background:var(--red-dim);border-color:rgba(255,79,79,0.3);color:var(--red)}
@@ -357,26 +357,27 @@ svg.linechart{display:block;overflow:visible}
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important}}
-/* ── GLOBAL TIMER STRIP — fixed above bottom nav ── */
+/* ── GLOBAL TIMER STRIP ── */
 #globalTimerStrip{
   position:fixed;
   left:0;right:0;
-  bottom:calc(58px + max(10px,env(safe-area-inset-bottom)));
-  z-index:99;
+  /* sits directly on top of bot-tabs which is always at bottom:0 */
+  bottom:calc(58px + max(8px,env(safe-area-inset-bottom)));
+  z-index:98; /* below bot-tabs z-index:100 */
   display:none;
   align-items:center;
   gap:12px;
-  background:rgba(10,10,11,0.97);
+  background:rgba(10,10,11,0.98);
   border-top:2px solid var(--acc);
-  border-bottom:1px solid var(--border);
   padding:10px 16px;
-  box-shadow:0 -4px 20px rgba(0,0,0,0.5);
-  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  height:50px;
+  box-shadow:0 -2px 12px rgba(0,0,0,0.4);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
 }
 #globalTimerStrip.visible{display:flex;}
 .gts-time{
   font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--acc);
-  letter-spacing:2px;line-height:1;transition:color 0.2s;min-width:58px;
+  letter-spacing:2px;line-height:1;transition:color 0.2s;min-width:56px;
 }
 .gts-time.warning{color:var(--orange)}
 .gts-time.done{color:var(--green)}
@@ -386,14 +387,14 @@ svg.linechart{display:block;overflow:visible}
 .gts-actions{display:flex;gap:8px;flex-shrink:0}
 .gts-btn{
   background:var(--s2);border:1px solid var(--border2);border-radius:8px;
-  color:var(--text);font-size:12px;font-weight:700;padding:7px 14px;
+  color:var(--text);font-size:12px;font-weight:700;padding:6px 13px;
   cursor:pointer;font-family:'Inter',sans-serif;transition:var(--transition);
 }
 .gts-btn:active{transform:scale(0.94)}
 .gts-btn.stop{border-color:rgba(255,79,79,0.35);color:var(--red);background:rgba(255,79,79,0.08)}
-/* when strip visible, push view content up so nothing hides behind it */
-body.timer-active .view{padding-bottom:160px;}
-body.timer-active .bot-tabs{bottom:50px;}
+/* when strip is visible add extra bottom padding so last content not hidden */
+body.timer-active .view{padding-bottom:158px;}
+/* bot-tabs NEVER moves — always at bottom:0 */
 
 /* custom split editor */
 #customSplitEditor select{font-size:12px;padding:7px 10px;background:var(--s2)}
@@ -1234,24 +1235,58 @@ function renderToday(){
 }
 
 function renderWeekStrip(){
-  const now=new Date();const sessSet=new Set(getSessions().map(s=>s.date));
-  const overrides=getPrefs().dayOverrides||{};let html='';
+  const now=new Date();
+  const sessSet=new Set(getSessions().map(s=>s.date));
+  const overrides=getPrefs().dayOverrides||{};
+  let html='';
   for(let i=-3;i<=3;i++){
     const d=new Date(now);d.setDate(now.getDate()+i);
-    const ds=d.toISOString().split('T')[0];const dow=d.getDay();
-    const workout=getWorkoutForDate(ds);const isRest=workout==='Rest';
+    const ds=d.toISOString().split('T')[0];
+    const dow=d.getDay();
+    const workout=getWorkoutForDate(ds);
+    const isRest=workout==='Rest';
     const isOverridden=!!overrides[ds];
-    html+=`<div class="day-chip${i===0?' today':''}${isRest?' rest-day':''}${sessSet.has(ds)?' has-log':''}" onclick="dayClick('${ds}','${workout}')" title="${workout}${isOverridden?' (custom)':''}">
-      <div class="day-name">${DAY_NAMES[dow]}${isOverridden?'·':''}</div>
-      <div class="day-num">${d.getDate()}</div>
+    const hasLog=sessSet.has(ds);
+    // For rest days show REST label; for workout days show day num
+    const label=isRest
+      ?`<div class="day-name">${DAY_NAMES[dow]}</div><div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">REST</div>`
+      :`<div class="day-name">${DAY_NAMES[dow]}${isOverridden?'·':''}</div><div class="day-num">${d.getDate()}</div>`;
+    html+=`<div class="day-chip${i===0?' today':''}${isRest?' rest-day':''}${hasLog?' has-log':''}" onclick="dayClick('${ds}','${workout}')" title="${workout}${isOverridden?' (custom)':''}">
+      ${label}
     </div>`;
   }
   document.getElementById('weekStrip').innerHTML=html;
 }
 
 function dayClick(ds,workout){
-  if(workout==='Rest'){openOverrideModal(ds,workout);return;}
-  nav('log');initLogForm(ds,workout);
+  if(workout==='Rest'){
+    // Show rest day info — tap opens override option
+    openOverrideModal(ds,workout);
+    return;
+  }
+  // Check if there's a logged session for this date
+  const existingSession=window._sessions.find(s=>s.date===ds);
+  if(existingSession){
+    // Scroll to and highlight that session card in recent list
+    nav('today');
+    setTimeout(()=>{
+      const card=document.getElementById('sc-'+existingSession.id);
+      if(card){
+        // Open it and scroll to it
+        card.classList.add('open');
+        card.scrollIntoView({behavior:'smooth',block:'center'});
+        // Flash highlight
+        card.style.borderColor='var(--acc)';
+        card.style.boxShadow='0 0 0 2px var(--acc-glow)';
+        setTimeout(()=>{
+          card.style.borderColor='';
+          card.style.boxShadow='';
+        },2000);
+      }
+    },100);
+  } else {
+    nav('log');initLogForm(ds,workout);
+  }
 }
 
 function renderRecent(){
@@ -1551,7 +1586,11 @@ function buzzDone(){
 }
 
 function showTimer(){
-  document.getElementById('timerBar').classList.add('active');
+  const bar=document.getElementById('timerBar');
+  if(bar){
+    bar.classList.add('active');
+    bar.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
   if(timerEndTime&&!timerDone)tickTimer();
 }
 function stopTimer(){
@@ -1574,6 +1613,7 @@ function startTimer(secs){
   // show global strip on all views
   document.getElementById('globalTimerStrip').classList.add('visible');
   document.body.classList.add('timer-active');
+  // bot-tabs stays fixed at bottom:0 always
   tickTimer();
   timerInterval=setInterval(tickTimer,250);
 }
