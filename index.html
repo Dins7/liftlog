@@ -2196,18 +2196,24 @@ function renderBwLog(){
         '</div>'+
       '</div>'+
       '<div style="font-size:10px;color:var(--muted);margin-bottom:8px;letter-spacing:.3px">Hold any entry to delete it</div>'+
-      '<div class="bw-entry-list">'+
+      '<div class="bw-entry-list" id="bwEntryList">'+
         log.map(e=>
-          '<div class="bw-entry" id="bwe-'+e.date+'" '+
-            'ontouchstart="bwLongPress(''+e.date+'')" '+
-            'ontouchend="bwLongPressCancel()" '+
-            'ontouchcancel="bwLongPressCancel()" '+
-            'oncontextmenu="deleteBwEntryConfirm(''+e.date+'',event)">'+
+          '<div class="bw-entry" id="bwe-'+e.date+'" data-bwdate="'+e.date+'">'+
             '<span class="bw-entry-val">'+e.weight+' kg</span>'+
             '<span class="bw-entry-date">'+fmtDate(e.date)+'</span>'+
           '</div>'
         ).join('')+
       '</div>';
+    // Attach touch events via JS after render (avoids inline string escaping issues)
+    requestAnimationFrame(()=>{
+      document.querySelectorAll('#bwEntryList .bw-entry').forEach(el=>{
+        const d=el.dataset.bwdate;
+        el.addEventListener('touchstart',()=>bwLongPress(d),{passive:true});
+        el.addEventListener('touchend',bwLongPressCancel,{passive:true});
+        el.addEventListener('touchcancel',bwLongPressCancel,{passive:true});
+        el.addEventListener('contextmenu',ev=>{ev.preventDefault();deleteBwEntryConfirm(d);});
+      });
+    });
 
     // ── FULL CHART ──
     if(chartEl&&log.length>=2){
