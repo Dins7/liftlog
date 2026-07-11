@@ -552,7 +552,7 @@ body.timer-active .view{padding-bottom:158px;}
   <div class="log-form">
     <div class="form-heading">Log Session</div>
     <div class="row2" style="margin-bottom:13px">
-      <div class="field"><label>Date</label><input type="date" id="logDate"></div>
+      <div class="field"><label>Date</label><input type="date" id="logDate" onchange="onLogDateChange()"></div>
       <div class="field"><label>Workout</label>
         <select id="logWorkout" onchange="onWorkoutChange()">
           <option>Chest + Biceps</option><option>Legs</option>
@@ -1467,17 +1467,76 @@ let exCount=0,pendingMachineEntryId=null;
 function quickLog(workout){nav('log');initLogForm(todayStr(),workout)}
 function initLogForm(date,workout){
   exCount=0;
-  document.getElementById('logDate').value=date||todayStr();
+  const targetDate=date||todayStr();
+  const targetWorkout=workout||document.getElementById('logWorkout').value||'Chest + Biceps';
+  document.getElementById('logDate').value=targetDate;
   const wSel=document.getElementById('logWorkout');
-  if(workout){for(let i=0;i<wSel.options.length;i++){if(wSel.options[i].value===workout){wSel.selectedIndex=i;break}}}
-  document.getElementById('logNotes').value='';
+  if(targetWorkout){
+    for(let i=0;i<wSel.options.length;i++){
+      if(wSel.options[i].value===targetWorkout){wSel.selectedIndex=i;break}
+    }
+  }
   document.getElementById('exerciseEntries').innerHTML='';
-  updateCopyLastBar();addExEntry();
+  // ── SMART LOAD: if session already exists for this date+workout, pre-fill it ──
+  const existing=getSessions().find(s=>s.date===targetDate&&s.workout===targetWorkout);
+  if(existing){
+    document.getElementById('logNotes').value=existing.notes||'';
+    const rpeSlider=document.getElementById('rpeSlider');
+    const rpeVal=document.getElementById('rpeVal');
+    if(rpeSlider&&existing.rpe){rpeSlider.value=existing.rpe;if(rpeVal)rpeVal.textContent=existing.rpe;}
+    existing.exercises.forEach(ex=>buildExEntry(null,ex.n,ex.m,ex.sets));
+    showExistingSessionBanner(existing);
+  } else {
+    document.getElementById('logNotes').value='';
+    addExEntry();
+  }
+  updateCopyLastBar();
 }
-function onWorkoutChange(){document.getElementById('exerciseEntries').innerHTML='';exCount=0;updateCopyLastBar();addExEntry();}
+
+function showExistingSessionBanner(sess){
+  // Remove old banner if any
+  document.getElementById('existingBanner')?.remove();
+  const banner=document.createElement('div');
+  banner.id='existingBanner';
+  banner.style.cssText='background:var(--acc-dim);border:1px solid rgba(200,241,53,0.35);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;';
+  banner.innerHTML=`
+    <div>
+      <div style="font-size:13px;font-weight:700;color:var(--acc)">Existing session loaded</div>
+      <div style="font-size:11px;color:var(--sub);margin-top:2px">${sess.exercises.length} exercises · ${sess.exercises.reduce((a,e)=>a+e.sets.length,0)} sets · tap + Set to add more</div>
+    </div>
+    <button onclick="clearAndStartFresh()" style="background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--sub);font-size:11px;font-weight:600;padding:5px 10px;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap">Start fresh</button>`;
+  const entries=document.getElementById('exerciseEntries');
+  entries.parentNode.insertBefore(banner,entries);
+}
+
+function clearAndStartFresh(){
+  document.getElementById('existingBanner')?.remove();
+  document.getElementById('exerciseEntries').innerHTML='';
+  exCount=0;
+  addExEntry();
+}
+
+function onWorkoutChange(){
+  document.getElementById('exerciseEntries').innerHTML='';
+  document.getElementById('existingBanner')?.remove();
+  exCount=0;
+  const date=document.getElementById('logDate').value;
+  const workout=document.getElementById('logWorkout').value;
+  const existing=getSessions().find(s=>s.date===date&&s.workout===workout);
+  if(existing){
+    existing.exercises.forEach(ex=>buildExEntry(null,ex.n,ex.m,ex.sets));
+    showExistingSessionBanner(existing);
+  } else {
+    addExEntry();
+  }
+  updateCopyLastBar();
+}
 function updateCopyLastBar(){
   const workout=document.getElementById('logWorkout').value;
   const date=document.getElementById('logDate').value;
+  // Hide copy-last if there's already a session for this exact date (we pre-loaded it)
+  const hasCurrent=getSessions().find(s=>s.date===date&&s.workout===workout);
+  if(hasCurrent){document.getElementById('copyLastBar').style.display='none';return;}
   const prev=getSessions().filter(s=>s.workout===workout&&s.date<date).sort((a,b)=>b.date.localeCompare(a.date))[0];
   const bar=document.getElementById('copyLastBar');
   if(prev){bar.style.display='flex';document.getElementById('copyLastSub').textContent=`Last: ${fmtDate(prev.date)} · ${prev.exercises.length} exercises`;}
@@ -1492,6 +1551,22 @@ function copyLastSession(){
   toast('Last session loaded — adjust weights!','success');
 }
 function addExEntry(){buildExEntry(null,'','',null);}
+function onLogDateChange(){
+  // When date changes, check if session exists and reload
+  const date=document.getElementById('logDate').value;
+  const workout=document.getElementById('logWorkout').value;
+  document.getElementById('exerciseEntries').innerHTML='';
+  document.getElementById('existingBanner')?.remove();
+  exCount=0;
+  const existing=getSessions().find(s=>s.date===date&&s.workout===workout);
+  if(existing){
+    existing.exercises.forEach(ex=>buildExEntry(null,ex.n,ex.m,ex.sets));
+    showExistingSessionBanner(existing);
+  } else {
+    addExEntry();
+  }
+  updateCopyLastBar();
+}
 function buildExEntry(id,prefillName,prefillMuscle,prefillSets){
   exCount++;const eid='ee'+exCount;
   const workout=document.getElementById('logWorkout').value;
@@ -1675,78 +1750,95 @@ let timerPaused=false;
 let timerDone=false;
 
 // ── AUDIO ENGINE ──
-// AudioContext must be unlocked by a user gesture first (iOS requirement)
+// iOS Safari: AudioContext MUST be created and resumed inside a synchronous
+// user gesture (touchstart/click). We do this on the very first interaction.
 let _audioCtx=null;
 let _audioUnlocked=false;
 
-function getAudioCtx(){
-  if(!_audioCtx) _audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  return _audioCtx;
-}
-
-// Call this on first user interaction to unlock audio on iOS
-function unlockAudio(){
+function _createAndUnlockAudio(){
   if(_audioUnlocked)return;
   try{
-    const ctx=getAudioCtx();
-    // Play a silent buffer to unlock
-    const buf=ctx.createBuffer(1,1,22050);
-    const src=ctx.createBufferSource();
-    src.buffer=buf;src.connect(ctx.destination);src.start(0);
-    if(ctx.state==='suspended')ctx.resume();
+    // Create context synchronously inside gesture
+    if(!_audioCtx) _audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    // Resume synchronously — this is the iOS unlock key
+    _audioCtx.resume();
+    // Play a real (but silent) sound to complete the unlock
+    const buf=_audioCtx.createBuffer(1,_audioCtx.sampleRate*0.1,_audioCtx.sampleRate);
+    const data=buf.getChannelData(0);
+    for(let i=0;i<data.length;i++)data[i]=0; // silent
+    const src=_audioCtx.createBufferSource();
+    src.buffer=buf;
+    const g=_audioCtx.createGain();g.gain.value=0.001;
+    src.connect(g);g.connect(_audioCtx.destination);
+    src.start(0);
     _audioUnlocked=true;
+    console.log('Audio unlocked, state:',_audioCtx.state);
+  }catch(e){console.warn('Audio unlock failed:',e);}
+}
+
+// Unlock on EVERY touch/click — iOS sometimes suspends context between sessions
+function _ensureAudio(){
+  if(!_audioCtx||_audioCtx.state==='suspended'){
+    _createAndUnlockAudio();
+  }
+}
+document.addEventListener('touchstart',_ensureAudio,{passive:true});
+document.addEventListener('click',_ensureAudio);
+
+function _playBeep(ctx,startTime,freq,duration,vol){
+  try{
+    // Square wave — cuts through music/AirPods (harsh harmonics)
+    const osc1=ctx.createOscillator();
+    const g1=ctx.createGain();
+    osc1.type='square';
+    osc1.frequency.value=freq;
+    g1.gain.setValueAtTime(0.001,startTime);
+    g1.gain.linearRampToValueAtTime(vol*0.6,startTime+0.008);
+    g1.gain.exponentialRampToValueAtTime(0.001,startTime+duration);
+    osc1.connect(g1);g1.connect(ctx.destination);
+    osc1.start(startTime);osc1.stop(startTime+duration+0.01);
+
+    // Sine at octave above — adds piercing brightness
+    const osc2=ctx.createOscillator();
+    const g2=ctx.createGain();
+    osc2.type='sine';
+    osc2.frequency.value=freq*2;
+    g2.gain.setValueAtTime(0.001,startTime);
+    g2.gain.linearRampToValueAtTime(vol*0.45,startTime+0.008);
+    g2.gain.exponentialRampToValueAtTime(0.001,startTime+duration*0.75);
+    osc2.connect(g2);g2.connect(ctx.destination);
+    osc2.start(startTime);osc2.stop(startTime+duration+0.01);
   }catch(e){}
 }
 
-// Unlock on any first touch/click anywhere
-document.addEventListener('touchstart',unlockAudio,{once:true,passive:true});
-document.addEventListener('click',unlockAudio,{once:true});
-
-// Play one sharp beep burst
-function _playBeep(ctx, startTime, freq, duration, vol){
-  // Oscillator 1: square wave (cuts through music/AirPods)
-  const osc1=ctx.createOscillator();
-  const g1=ctx.createGain();
-  osc1.type='square';
-  osc1.frequency.value=freq;
-  g1.gain.setValueAtTime(0,startTime);
-  g1.gain.linearRampToValueAtTime(vol*0.5,startTime+0.005); // snappy attack
-  g1.gain.exponentialRampToValueAtTime(0.001,startTime+duration);
-  osc1.connect(g1);g1.connect(ctx.destination);
-  osc1.start(startTime);osc1.stop(startTime+duration);
-
-  // Oscillator 2: sine at 2x freq (adds brightness)
-  const osc2=ctx.createOscillator();
-  const g2=ctx.createGain();
-  osc2.type='sine';
-  osc2.frequency.value=freq*2;
-  g2.gain.setValueAtTime(0,startTime);
-  g2.gain.linearRampToValueAtTime(vol*0.4,startTime+0.005);
-  g2.gain.exponentialRampToValueAtTime(0.001,startTime+duration*0.8);
-  osc2.connect(g2);g2.connect(ctx.destination);
-  osc2.start(startTime);osc2.stop(startTime+duration);
-}
-
 function buzzDone(){
-  // Vibration pattern (works with or without audio)
-  if(navigator.vibrate) navigator.vibrate([200,100,200,100,200,100,400]);
+  // Always vibrate regardless of audio state
+  if(navigator.vibrate) navigator.vibrate([250,100,250,100,250,100,500]);
 
   try{
-    const ctx=getAudioCtx();
-    if(ctx.state==='suspended') ctx.resume();
-
-    const t=ctx.currentTime;
-    // 5 beep-bursts over 5 seconds: 0s, 1s, 2s, 3s, 4s
-    // Pattern: 3 quick beeps per burst (ascending pitch)
-    const bursts=[0,1,2,3,4];
-    bursts.forEach(b=>{
-      const base=t+b;
-      _playBeep(ctx, base+0.00, 880, 0.18, 0.9);  // high A
-      _playBeep(ctx, base+0.22, 1046, 0.18, 0.9); // C6
-      _playBeep(ctx, base+0.44, 1318, 0.22, 1.0); // E6 (loudest)
-    });
-  }catch(e){console.warn('Buzz failed:',e);}
+    // Ensure context is running
+    if(!_audioCtx) _audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    const resume=_audioCtx.state==='suspended'?_audioCtx.resume():Promise.resolve();
+    resume.then(()=>{
+      const ctx=_audioCtx;
+      const t=ctx.currentTime+0.05; // tiny scheduling buffer
+      // 5 bursts × 3 ascending beeps over 5 seconds
+      // E5(659Hz) → A5(880Hz) → E6(1318Hz) — urgent, distinct, cuts through music
+      [0,1,2,3,4].forEach(b=>{
+        const base=t+b;
+        _playBeep(ctx, base+0.00, 659,  0.20, 0.85);
+        _playBeep(ctx, base+0.23, 880,  0.20, 0.95);
+        _playBeep(ctx, base+0.46, 1318, 0.25, 1.00);
+      });
+    }).catch(e=>console.warn('Audio resume failed:',e));
+  }catch(e){console.warn('buzzDone error:',e);}
 }
+
+// Test audio — call from console: testBuzz()
+window.testBuzz=function(){
+  _ensureAudio();
+  setTimeout(buzzDone,100);
+};
 
 function showTimer(){
   const bar=document.getElementById('timerBar');
