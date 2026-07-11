@@ -648,6 +648,16 @@ body.timer-active .view{padding-bottom:158px;}
 <div class="view" id="view-prs">
   <div class="section-title">Personal Records</div>
   <div id="prList" style="margin-bottom:22px"></div>
+  <!-- RECOVERY GUIDE -->
+  <div class="prog-card" style="margin-bottom:14px">
+    <div class="prog-card-title">Data Recovery</div>
+    <div style="font-size:13px;color:var(--sub);line-height:1.6;margin-bottom:12px">Your data lives in Firebase Firestore under your Google account. It is never lost unless you manually delete it. If sessions disappear from the UI, tap Refresh on the Today page. For anything accidentally deleted within 5 seconds use the UNDO button that appears.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-ghost" onclick="forceReloadSessions()" style="flex:1;min-width:120px">↻ Force Reload</button>
+      <button class="btn-ghost" onclick="buildExport();toast('Export ready — copy it below','success')" style="flex:1;min-width:120px">📋 Backup Now</button>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.5">💡 Tip: Export your log monthly and paste into Apple Notes as a text backup. This protects against any cloud issue.</div>
+  </div>
   <div class="section-title">Export Log</div>
   <div class="log-form">
     <div style="margin-bottom:12px;display:flex;gap:8px">
@@ -1303,9 +1313,8 @@ function renderToday(){
     if(tc)tc.innerHTML=`<div class="today-day">${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()]}</div><div class="today-date" style="color:var(--sub);font-size:12px">${new Date().getDate()} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date().getMonth()]} ${new Date().getFullYear()}</div>`;
     return;
   }
-  const split=SPLITS[p.split||'A'];
   const overrides=p.dayOverrides||{};
-  const workout=overrides[ds]||getWorkoutForDow(dow);
+  const workout=overrides[ds]||getWorkoutForDow(dow); // uses custom split if split==='C' 
   const isOverridden=!!overrides[ds];
   const isRest=workout==='Rest';
   document.getElementById('splitBadge').textContent=split.label;
@@ -1394,7 +1403,7 @@ function renderRecent(){
       el.innerHTML=`<div class="empty-state"><span style="font-size:36px;display:block;margin-bottom:10px">🏋️</span><div style="font-size:16px;font-weight:700;color:var(--text2);margin-bottom:6px">No sessions yet</div><div style="font-size:13px">Tap Log to record your first workout</div></div>`;
       return;
     }
-    const sorted=[...sessions].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
+    const sorted=[...sessions].sort((a,b)=>b.date.localeCompare(a.date)); // show all sessions
     el.innerHTML=sorted.map(s=>buildSessCard(s)).join('');
     sorted.forEach(s=>{
       const card=document.getElementById('sc-'+s.id);
@@ -1665,29 +1674,78 @@ let timerPausedAt=null;   // epoch ms when paused
 let timerPaused=false;
 let timerDone=false;
 
-// Audio context for buzzer
+// ── AUDIO ENGINE ──
+// AudioContext must be unlocked by a user gesture first (iOS requirement)
 let _audioCtx=null;
+let _audioUnlocked=false;
+
 function getAudioCtx(){
-  if(!_audioCtx)_audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(!_audioCtx) _audioCtx=new(window.AudioContext||window.webkitAudioContext)();
   return _audioCtx;
 }
-function buzzDone(){
+
+// Call this on first user interaction to unlock audio on iOS
+function unlockAudio(){
+  if(_audioUnlocked)return;
   try{
     const ctx=getAudioCtx();
-    // Three beeps
-    [0,0.4,0.8].forEach(delay=>{
-      const osc=ctx.createOscillator();
-      const gain=ctx.createGain();
-      osc.connect(gain);gain.connect(ctx.destination);
-      osc.frequency.value=880;
-      osc.type='sine';
-      gain.gain.setValueAtTime(0.6,ctx.currentTime+delay);
-      gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.35);
-      osc.start(ctx.currentTime+delay);
-      osc.stop(ctx.currentTime+delay+0.35);
+    // Play a silent buffer to unlock
+    const buf=ctx.createBuffer(1,1,22050);
+    const src=ctx.createBufferSource();
+    src.buffer=buf;src.connect(ctx.destination);src.start(0);
+    if(ctx.state==='suspended')ctx.resume();
+    _audioUnlocked=true;
+  }catch(e){}
+}
+
+// Unlock on any first touch/click anywhere
+document.addEventListener('touchstart',unlockAudio,{once:true,passive:true});
+document.addEventListener('click',unlockAudio,{once:true});
+
+// Play one sharp beep burst
+function _playBeep(ctx, startTime, freq, duration, vol){
+  // Oscillator 1: square wave (cuts through music/AirPods)
+  const osc1=ctx.createOscillator();
+  const g1=ctx.createGain();
+  osc1.type='square';
+  osc1.frequency.value=freq;
+  g1.gain.setValueAtTime(0,startTime);
+  g1.gain.linearRampToValueAtTime(vol*0.5,startTime+0.005); // snappy attack
+  g1.gain.exponentialRampToValueAtTime(0.001,startTime+duration);
+  osc1.connect(g1);g1.connect(ctx.destination);
+  osc1.start(startTime);osc1.stop(startTime+duration);
+
+  // Oscillator 2: sine at 2x freq (adds brightness)
+  const osc2=ctx.createOscillator();
+  const g2=ctx.createGain();
+  osc2.type='sine';
+  osc2.frequency.value=freq*2;
+  g2.gain.setValueAtTime(0,startTime);
+  g2.gain.linearRampToValueAtTime(vol*0.4,startTime+0.005);
+  g2.gain.exponentialRampToValueAtTime(0.001,startTime+duration*0.8);
+  osc2.connect(g2);g2.connect(ctx.destination);
+  osc2.start(startTime);osc2.stop(startTime+duration);
+}
+
+function buzzDone(){
+  // Vibration pattern (works with or without audio)
+  if(navigator.vibrate) navigator.vibrate([200,100,200,100,200,100,400]);
+
+  try{
+    const ctx=getAudioCtx();
+    if(ctx.state==='suspended') ctx.resume();
+
+    const t=ctx.currentTime;
+    // 5 beep-bursts over 5 seconds: 0s, 1s, 2s, 3s, 4s
+    // Pattern: 3 quick beeps per burst (ascending pitch)
+    const bursts=[0,1,2,3,4];
+    bursts.forEach(b=>{
+      const base=t+b;
+      _playBeep(ctx, base+0.00, 880, 0.18, 0.9);  // high A
+      _playBeep(ctx, base+0.22, 1046, 0.18, 0.9); // C6
+      _playBeep(ctx, base+0.44, 1318, 0.22, 1.0); // E6 (loudest)
     });
-  }catch(e){console.warn('Audio buzz failed:',e);}
-  if(navigator.vibrate)navigator.vibrate([300,150,300,150,400]);
+  }catch(e){console.warn('Buzz failed:',e);}
 }
 
 function showTimer(){
@@ -2086,60 +2144,141 @@ function logBodyweight(){
   toast(`Logged ${val}kg`, 'success');
 }
 function renderBwLog(){
-  const prefs = getPrefs();
-  const log = (prefs.bwLog || []).slice().sort((a,b) => b.date.localeCompare(a.date));
-  const listEl = document.getElementById('bwList');
-  const trendEl = document.getElementById('bwTrend');
-  if(!listEl) return;
-  if(!log.length){
-    listEl.innerHTML = '<div style="color:var(--sub);font-size:13px;padding:8px 0">No entries yet — log your first weight above</div>';
-    trendEl.style.display = 'none';
-    document.getElementById('bwChartWrap').innerHTML = '';
-    return;
-  }
-  // trend
-  if(log.length >= 2){
-    const diff = (log[0].weight - log[1].weight).toFixed(1);
-    const cls = diff > 0 ? 'up' : diff < 0 ? 'down' : 'same';
-    const arrow = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
-    const label = diff > 0 ? `+${diff}kg since last entry` : diff < 0 ? `${diff}kg since last entry` : 'Same as last entry';
-    trendEl.style.display = 'flex';
-    trendEl.className = `bw-trend ${cls}`;
-    trendEl.innerHTML = `<span style="font-size:16px">${arrow}</span><span>${label}</span><span style="margin-left:auto;font-family:var(--font-mono);font-size:13px;font-weight:700">${log[0].weight}kg</span>`;
-  } else {
-    trendEl.style.display = 'none';
-  }
-  // list (last 7)
-  listEl.innerHTML = `<div class="bw-entry-list">${log.slice(0,7).map(e => `
-    <div class="bw-entry">
-      <span class="bw-entry-val">${e.weight} kg</span>
-      <span class="bw-entry-date">${fmtDate(e.date)}</span>
-      <button class="bw-entry-del" onclick="deleteBwEntry('${e.date}')">✕</button>
-    </div>`).join('')}</div>`;
-  // mini chart
-  const chartData = log.slice().reverse().slice(-14);
-  if(chartData.length >= 2){
-    const W=300,H=80,PL=30,PR=10,PT=12,PB=20,cW=W-PL-PR,cH=H-PT-PB;
-    const weights=chartData.map(d=>d.weight);
-    const minW=Math.min(...weights)-1, maxW=Math.max(...weights)+1;
-    const xS=i=>PL+i*(cW/(chartData.length-1));
-    const yS=v=>PT+cH-((v-minW)/(maxW-minW||1))*cH;
-    const pts=chartData.map((d,i)=>({x:xS(i),y:yS(d.weight),d}));
-    const pathD=pts.map((p,i)=>(i===0?'M':'L')+`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-    const areaD=`${pathD} L${pts[pts.length-1].x.toFixed(1)},${(PT+cH).toFixed(1)} L${PL},${(PT+cH).toFixed(1)} Z`;
-    const dots=pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="var(--acc)" stroke="var(--bg)" stroke-width="1.5"/>`).join('');
-    document.getElementById('bwChartWrap').innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%">
-      <defs><linearGradient id="bwg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--acc)" stop-opacity=".2"/><stop offset="100%" stop-color="var(--acc)" stop-opacity="0"/></linearGradient></defs>
-      <path d="${areaD}" fill="url(#bwg)"/>
-      <path d="${pathD}" stroke="var(--acc)" stroke-width="2" fill="none" stroke-linejoin="round"/>
-      ${dots}
-    </svg>`;
-  }
+  try{
+    const prefs=getPrefs();
+    const log=(prefs.bwLog||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
+    const listEl=document.getElementById('bwList');
+    const trendEl=document.getElementById('bwTrend');
+    const chartEl=document.getElementById('bwChartWrap');
+    if(!listEl)return;
+
+    if(!log.length){
+      listEl.innerHTML='<div style="color:var(--sub);font-size:13px;padding:12px 0;text-align:center">No entries yet — log your first weight above</div>';
+      if(trendEl)trendEl.style.display='none';
+      if(chartEl)chartEl.innerHTML='';
+      return;
+    }
+
+    // ── STATS ──
+    const curW=log[0].weight;
+    const oldW=log[log.length-1].weight;
+    const totalChange=(curW-oldW).toFixed(1);
+    const minW=Math.min(...log.map(e=>e.weight));
+    const maxBW=Math.max(...log.map(e=>e.weight));
+    const avg=(log.reduce((a,e)=>a+e.weight,0)/log.length).toFixed(1);
+    const changeColor=parseFloat(totalChange)<0?'var(--green)':parseFloat(totalChange)>0?'var(--red)':'var(--sub)';
+
+    // ── TREND ──
+    if(trendEl){
+      if(log.length>=2){
+        const diff=(log[0].weight-log[1].weight).toFixed(1);
+        const cls=parseFloat(diff)>0?'up':parseFloat(diff)<0?'down':'same';
+        const arrow=parseFloat(diff)>0?'↑':parseFloat(diff)<0?'↓':'→';
+        trendEl.style.display='flex';trendEl.className='bw-trend '+cls;
+        trendEl.innerHTML='<span style="font-size:16px">'+arrow+'</span><span>'+(parseFloat(diff)>0?'+':'')+diff+'kg vs last entry</span><span style="margin-left:auto;font-size:11px;color:var(--sub)">'+log.length+' entries</span>';
+      } else { trendEl.style.display='none'; }
+    }
+
+    // ── LIST: all entries, long-press to delete ──
+    listEl.innerHTML=
+      '<div style="display:flex;gap:8px;margin-bottom:12px">'+
+        '<div style="flex:1;background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px;text-align:center">'+
+          '<div style="font-family:Bebas Neue,sans-serif;font-size:26px;color:var(--acc)">'+curW+'kg</div>'+
+          '<div style="font-size:9px;color:var(--sub);text-transform:uppercase;letter-spacing:.6px;font-weight:700">Current</div>'+
+        '</div>'+
+        '<div style="flex:1;background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px;text-align:center">'+
+          '<div style="font-family:Bebas Neue,sans-serif;font-size:26px;color:'+changeColor+'">'+(parseFloat(totalChange)>0?'+':'')+totalChange+'kg</div>'+
+          '<div style="font-size:9px;color:var(--sub);text-transform:uppercase;letter-spacing:.6px;font-weight:700">All-time</div>'+
+        '</div>'+
+        '<div style="flex:1;background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px;text-align:center">'+
+          '<div style="font-family:Bebas Neue,sans-serif;font-size:22px;color:var(--blue)">'+avg+'kg</div>'+
+          '<div style="font-size:9px;color:var(--sub);text-transform:uppercase;letter-spacing:.6px;font-weight:700">Avg</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="font-size:10px;color:var(--muted);margin-bottom:8px;letter-spacing:.3px">Hold any entry to delete it</div>'+
+      '<div class="bw-entry-list">'+
+        log.map(e=>
+          '<div class="bw-entry" id="bwe-'+e.date+'" '+
+            'ontouchstart="bwLongPress(''+e.date+'')" '+
+            'ontouchend="bwLongPressCancel()" '+
+            'ontouchcancel="bwLongPressCancel()" '+
+            'oncontextmenu="deleteBwEntryConfirm(''+e.date+'',event)">'+
+            '<span class="bw-entry-val">'+e.weight+' kg</span>'+
+            '<span class="bw-entry-date">'+fmtDate(e.date)+'</span>'+
+          '</div>'
+        ).join('')+
+      '</div>';
+
+    // ── FULL CHART ──
+    if(chartEl&&log.length>=2){
+      const cd=log.slice().reverse();
+      const W=320,H=130,PL=44,PR=12,PT=18,PB=28,cW=W-PL-PR,cH=H-PT-PB;
+      const wts=cd.map(d=>d.weight);
+      const rMin=Math.min(...wts),rMax=Math.max(...wts);
+      const pad2=Math.max((rMax-rMin)*0.25,0.5);
+      const vMin=rMin-pad2,vMax=rMax+pad2;
+      const xS=i=>PL+i*(cW/(cd.length-1||1));
+      const yS=v=>PT+cH-((v-vMin)/(vMax-vMin||1))*cH;
+      const pts=cd.map((d,i)=>({x:xS(i),y:yS(d.weight),d}));
+      const pathD=pts.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
+      const areaD=pathD+' L'+pts[pts.length-1].x.toFixed(1)+','+(PT+cH)+' L'+PL+','+(PT+cH)+' Z';
+      // y-axis: 3 ticks
+      const ticks=[rMin,parseFloat(avg),rMax];
+      const yGrid=ticks.map(t=>{
+        const ty=yS(t);
+        return '<line x1="'+PL+'" y1="'+ty.toFixed(1)+'" x2="'+(W-PR)+'" y2="'+ty.toFixed(1)+'" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="3,4"/>'+
+               '<text x="'+(PL-5)+'" y="'+ty.toFixed(1)+'" text-anchor="end" font-size="8" fill="var(--sub)" font-family="JetBrains Mono,monospace" dominant-baseline="middle">'+t.toFixed(1)+'</text>';
+      }).join('');
+      // dots: highlight first and last
+      const dotsSvg=pts.map((p,i)=>{
+        const isLast=i===pts.length-1;
+        const col=isLast?'var(--acc)':'rgba(200,241,53,0.3)';
+        const r2=isLast?5:3;
+        const lbl=isLast||i===0?'<text x="'+p.x.toFixed(1)+'" y="'+(p.y-10).toFixed(1)+'" text-anchor="middle" font-size="9" fill="'+(isLast?'var(--acc)':'var(--sub)')+'" font-family="JetBrains Mono,monospace" font-weight="600">'+p.d.weight+'</text>':'';
+        return '<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="'+r2+'" fill="'+col+'" stroke="var(--bg)" stroke-width="1.5"/>'+lbl;
+      }).join('');
+      // x labels: first / mid / last
+      const xIdx=[0,Math.floor((pts.length-1)/2),pts.length-1];
+      const xLbls=[...new Set(xIdx)].map(i=>'<text x="'+pts[i].x.toFixed(1)+'" y="'+(PT+cH+18)+'" text-anchor="middle" font-size="8" fill="var(--sub)" font-family="Inter,sans-serif">'+fmtDate(pts[i].d.date)+'</text>').join('');
+      chartEl.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="margin-top:10px">'+
+        '<defs><linearGradient id="bwg3" x1="0" y1="0" x2="0" y2="1">'+
+          '<stop offset="0%" stop-color="var(--acc)" stop-opacity=".22"/>'+
+          '<stop offset="100%" stop-color="var(--acc)" stop-opacity="0"/>'+
+        '</linearGradient></defs>'+
+        yGrid+
+        '<path d="'+areaD+'" fill="url(#bwg3)"/>'+
+        '<path d="'+pathD+'" stroke="var(--acc)" stroke-width="2.5" fill="none" stroke-linejoin="round" stroke-linecap="round"/>'+
+        dotsSvg+xLbls+
+      '</svg>';
+    }
+  }catch(err){console.error('renderBwLog:',err);}
+}
+
+// Long-press to delete BW entry
+let _bwLongPressTimer=null;
+function bwLongPress(date){
+  _bwLongPressTimer=setTimeout(()=>{
+    deleteBwEntryConfirm(date);
+  },700);
+}
+function bwLongPressCancel(){
+  if(_bwLongPressTimer){clearTimeout(_bwLongPressTimer);_bwLongPressTimer=null;}
+}
+function deleteBwEntryConfirm(date,e){
+  if(e)e.preventDefault();
+  bwLongPressCancel();
+  const entry=(getPrefs().bwLog||[]).find(b=>b.date===date);
+  if(!entry)return;
+  if(!confirm('Delete '+entry.weight+'kg entry for '+fmtDate(date)+'?'))return;
+  deleteBwEntry(date);
 }
 function deleteBwEntry(date){
   const prefs={...getPrefs()};
   prefs.bwLog=(prefs.bwLog||[]).filter(e=>e.date!==date);
-  window._prefs=prefs;window._savePrefs(prefs);renderBwLog();toast('Entry deleted');
+  window._prefs=prefs;window._savePrefs(prefs);
+  document.getElementById('bwe-'+date)?.remove();
+  renderBwLog();
+  toast('Entry deleted');
 }
 
 // ═══════════════════════════════════════
