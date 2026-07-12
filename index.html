@@ -1556,12 +1556,26 @@ function deleteSess(id){
 // ── LOG FORM ──
 let exCount=0,pendingMachineEntryId=null;
 function quickLog(workout){nav('log');initLogForm(todayStr(),workout)}
+function _setLogWorkoutFromDate(dateStr){
+  // Auto-set workout dropdown based on split schedule for that date
+  const overrideWorkout=getWorkoutForDate(dateStr);
+  const wSel=document.getElementById('logWorkout');
+  if(overrideWorkout&&overrideWorkout!=='Rest'){
+    for(let i=0;i<wSel.options.length;i++){
+      if(wSel.options[i].value===overrideWorkout){wSel.selectedIndex=i;return overrideWorkout;}
+    }
+  }
+  return wSel.value;
+}
+
 function initLogForm(date,workout){
   exCount=0;
   const targetDate=date||todayStr();
-  const targetWorkout=workout||document.getElementById('logWorkout').value||'Chest + Biceps';
   document.getElementById('logDate').value=targetDate;
   const wSel=document.getElementById('logWorkout');
+  // If workout explicitly passed (from tapping today card), use it
+  // Otherwise derive from split schedule for that date
+  const targetWorkout=workout||_setLogWorkoutFromDate(targetDate)||wSel.value||'Chest + Biceps';
   if(targetWorkout){
     for(let i=0;i<wSel.options.length;i++){
       if(wSel.options[i].value===targetWorkout){wSel.selectedIndex=i;break}
@@ -1643,12 +1657,14 @@ function copyLastSession(){
 }
 function addExEntry(){buildExEntry(null,'','',null);}
 function onLogDateChange(){
-  // When date changes, check if session exists and reload
   const date=document.getElementById('logDate').value;
+  // Auto-set workout dropdown from split schedule for this date
+  const autoWorkout=_setLogWorkoutFromDate(date);
   const workout=document.getElementById('logWorkout').value;
   document.getElementById('exerciseEntries').innerHTML='';
   document.getElementById('existingBanner')?.remove();
   exCount=0;
+  // Check if session exists for new date+workout
   const existing=getSessions().find(s=>s.date===date&&s.workout===workout);
   if(existing){
     existing.exercises.forEach(ex=>buildExEntry(null,ex.n,ex.m,ex.sets));
@@ -2278,6 +2294,11 @@ function setCustomDay(dow,workout){
   try{localStorage.setItem('ll_cache_prefs',JSON.stringify(prefs));}catch(e){}
   window._savePrefs(prefs);
   renderSplitModal();renderToday();renderWeekStrip();
+  // Sync log form workout if log tab is visible
+  if(currentView==='log'){
+    const logDate=document.getElementById('logDate')?.value;
+    if(logDate){_setLogWorkoutFromDate(logDate);}
+  }
 }
 
 // ── MODALS ──
@@ -2501,12 +2522,14 @@ function getDaysSince(dateStr){
 }
 
 function heatColor(groupId, lastTrained){
-  if(!lastTrained[groupId]) return '#2a2a32'; // never trained
+  if(!lastTrained[groupId]) return '#2a2a32';
   const days=getDaysSince(lastTrained[groupId].date);
-  const needed=RECOVERY_DAYS[groupId]||2;
-  if(days===0) return '#ff4f4f';   // trained today — red
-  if(days<needed) return '#ff9248'; // still recovering — orange
-  return '#4cd88a';                // fully recovered — green
+  const base=RECOVERY_DAYS[groupId]||2;
+  const extra=(getPrefs().muscleRecoveryOverrides||{})[groupId]||0;
+  const needed=base+extra;
+  if(days===0) return '#ff4f4f';
+  if(days<needed) return '#ff9248';
+  return '#4cd88a';
 }
 
 let currentBodyView='front';
@@ -2678,6 +2701,12 @@ function showMuscleDetail(groupId){
       <div class="muscle-ex-sets">${ex.sets.map(st=>st.w===0?`BW × ${st.r}r`:`${st.w}kg × ${st.r}r`).join(' · ')}</div>
     </div>`).join(''):'<div style="color:var(--sub);font-size:13px">No sessions logged for this muscle yet</div>';
 
+  // Get user override days for this muscle
+  const prefs=getPrefs();
+  const muscleOverrides=prefs.muscleRecoveryOverrides||{};
+  const extraDays=muscleOverrides[groupId]||0;
+  const effectiveNeeded=needed+extraDays;
+
   document.getElementById('muscleDetailContent').innerHTML=`
     <div class="muscle-detail-header">
       <div class="muscle-detail-dot" style="background:${color}"></div>
@@ -2695,9 +2724,39 @@ function showMuscleDetail(groupId){
       </div>
     </div>
     ${data?`<div style="font-size:11px;color:var(--sub);font-family:var(--font-mono);margin-bottom:10px">${data.workout}</div>`:''}
+    <div style="background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px">Recovery Override</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="flex:1">
+          <div style="font-size:13px;color:var(--text)">Required recovery: <b style="color:var(--acc)">${effectiveNeeded} days</b></div>
+          <div style="font-size:11px;color:var(--sub);margin-top:2px">Base: ${needed}d ${extraDays>0?'+ '+extraDays+'d sore':'(default)'}</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button onclick="adjustMuscleRecovery('${groupId}',-1)" style="width:32px;height:32px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:18px;cursor:pointer;font-family:'Inter',sans-serif;line-height:1">−</button>
+          <span style="font-size:16px;font-weight:700;color:var(--acc);min-width:28px;text-align:center;font-family:var(--font-mono)">${extraDays>0?'+'+extraDays:extraDays}</span>
+          <button onclick="adjustMuscleRecovery('${groupId}',1)" style="width:32px;height:32px;background:var(--s3);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:18px;cursor:pointer;font-family:'Inter',sans-serif;line-height:1">+</button>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px">Feeling sore? Tap + to add extra recovery day. Resets to default automatically.</div>
+    </div>
     <div class="section-title" style="margin-bottom:8px">Last Session Exercises</div>
     <div class="muscle-ex-list">${exHTML}</div>`;
   openModal('muscleModal');
+}
+
+function adjustMuscleRecovery(groupId,delta){
+  const prefs={...getPrefs()};
+  prefs.muscleRecoveryOverrides=prefs.muscleRecoveryOverrides||{};
+  const current=prefs.muscleRecoveryOverrides[groupId]||0;
+  const newVal=Math.max(0,Math.min(5,current+delta)); // 0 to +5 extra days
+  if(newVal===0)delete prefs.muscleRecoveryOverrides[groupId];
+  else prefs.muscleRecoveryOverrides[groupId]=newVal;
+  window._prefs=prefs;
+  window._savePrefs(prefs);
+  // Re-open detail to refresh
+  showMuscleDetail(groupId);
+  // Re-render heatmap
+  renderHeatmap();
 }
 
 // ═══════════════════════════════════════
@@ -2866,15 +2925,48 @@ function refreshAllViews(){
 let _gymSessionStart=null;
 let _gymTimerInterval=null;
 
+// ── GYM SESSION TIMER ──
+let _gymCheckoutConfirmTimer=null;
+let _gymDeleteHoldTimer=null;
+let _gymUndoEntry=null;
+let _gymUndoTimer=null;
+
+function _fmtTime(d){
+  return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+}
+function _fmtDur(sec){
+  const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
+  return h>0?h+'h '+m+'m':m>0?m+'m '+s+'s':s+'s';
+}
+function _elapsedStr(startMs){
+  const sec=Math.floor((Date.now()-startMs)/1000);
+  const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
+  return h>0?h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'):String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+
 function startGymSession(){
+  if(_gymSessionStart){toast('Already checked in!');return;}
   _gymSessionStart=Date.now();
   localStorage.setItem('ll_gym_session_start',String(_gymSessionStart));
-  tickGymTimer();
+  clearInterval(_gymTimerInterval);
   _gymTimerInterval=setInterval(tickGymTimer,1000);
+  tickGymTimer();
+  toast('✅ Checked in at '+_fmtTime(new Date(_gymSessionStart)),'success');
   renderToday();
 }
 
 function endGymSession(){
+  if(!_gymSessionStart){toast('Not checked in yet');return;}
+  // Require confirmation — show confirm button for 4 seconds
+  const elapsed=Math.floor((Date.now()-_gymSessionStart)/1000);
+  if(elapsed<60){
+    // Less than 1 min — likely accidental
+    if(!confirm('Check out already? Session is only '+_fmtDur(elapsed)+' long.'))return;
+  }
+  _doCheckout();
+}
+
+function _doCheckout(){
   if(!_gymSessionStart)return;
   const elapsed=Math.floor((Date.now()-_gymSessionStart)/1000);
   clearInterval(_gymTimerInterval);_gymTimerInterval=null;
@@ -2883,41 +2975,93 @@ function endGymSession(){
   _gymSessionStart=null;
   localStorage.removeItem('ll_gym_session_start');
 
-  // Format times
-  const fmt=d=>d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
-  const h=Math.floor(elapsed/3600);
-  const m=Math.floor((elapsed%3600)/60);
-  const s=elapsed%60;
-  const durStr=h>0?h+'h '+m+'m':m+'m '+s+'s';
-
-  // Save to gym log history in prefs
   const entry={
+    id:'gym'+Date.now(),
     date:todayStr(),
-    checkIn:fmt(checkInTime),
-    checkOut:fmt(checkOutTime),
+    checkIn:_fmtTime(checkInTime),
+    checkOut:_fmtTime(checkOutTime),
     duration:elapsed,
-    durStr
+    durStr:_fmtDur(elapsed)
   };
+
   const prefs={...getPrefs()};
   prefs.gymLog=prefs.gymLog||[];
-  // Replace same-day entry if exists
-  prefs.gymLog=prefs.gymLog.filter(e=>e.date!==entry.date);
   prefs.gymLog.unshift(entry);
-  if(prefs.gymLog.length>90)prefs.gymLog=prefs.gymLog.slice(0,90); // keep 3 months
+  if(prefs.gymLog.length>180)prefs.gymLog=prefs.gymLog.slice(0,180);
   window._prefs=prefs;
   window._savePrefs(prefs);
 
-  showSessionSummary(elapsed,fmt(checkInTime),fmt(checkOutTime));
+  // Show undo toast
+  _gymUndoEntry=entry;
+  showGymCheckoutUndo(entry);
+  renderToday();
+}
+
+function showGymCheckoutUndo(entry){
+  let el=document.getElementById('gymUndoToast');
+  if(el)el.remove();
+  const t=document.createElement('div');
+  t.id='gymUndoToast';
+  t.style.cssText='position:fixed;bottom:150px;left:50%;transform:translateX(-50%);background:var(--s1);color:var(--text);border:1px solid var(--border2);font-size:13px;padding:11px 8px 11px 16px;border-radius:14px;z-index:600;display:flex;align-items:center;gap:10px;box-shadow:0 4px 24px rgba(0,0,0,0.5);white-space:nowrap;animation:fadeUp 0.3s both;';
+  t.innerHTML='<span>💪 <b>'+entry.durStr+'</b> · '+entry.checkIn+' – '+entry.checkOut+'</span>'+
+    '<button onclick="undoGymCheckout(''+entry.id+'')" style="background:var(--acc);color:#000;border:none;border-radius:8px;padding:6px 14px;font-weight:800;font-size:12px;cursor:pointer;font-family:'Inter',sans-serif">UNDO</button>';
+  // countdown bar
+  const bar=document.createElement('div');
+  bar.style.cssText='position:absolute;bottom:0;left:0;height:2px;background:var(--acc);border-radius:0 0 14px 14px;width:100%;transition:width 6s linear;';
+  t.appendChild(bar);
+  document.body.appendChild(t);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{bar.style.width='0%';}));
+  _gymUndoTimer=setTimeout(()=>{t.remove();_gymUndoEntry=null;},6300);
+}
+
+function undoGymCheckout(id){
+  clearTimeout(_gymUndoTimer);
+  document.getElementById('gymUndoToast')?.remove();
+  // Remove entry from log
+  const prefs={...getPrefs()};
+  prefs.gymLog=(prefs.gymLog||[]).filter(e=>e.id!==id);
+  // Restore check-in state using the entry's check-in time
+  if(_gymUndoEntry&&_gymUndoEntry.id===id){
+    const [hh,mm]=_gymUndoEntry.checkIn.split(':').map(Number);
+    const restored=new Date();
+    restored.setHours(hh,mm,0,0);
+    _gymSessionStart=restored.getTime();
+    localStorage.setItem('ll_gym_session_start',String(_gymSessionStart));
+    clearInterval(_gymTimerInterval);
+    _gymTimerInterval=setInterval(tickGymTimer,1000);
+  }
+  window._prefs=prefs;
+  window._savePrefs(prefs);
+  _gymUndoEntry=null;
+  toast('Check-out undone — still in session','success');
+  renderToday();
+}
+
+// Hold 3 seconds to delete a gym log entry
+let _gymHoldTimer=null;
+function gymLogHoldStart(id){
+  _gymHoldTimer=setTimeout(()=>{deleteGymLogEntry(id);},3000);
+}
+function gymLogHoldEnd(){
+  if(_gymHoldTimer){clearTimeout(_gymHoldTimer);_gymHoldTimer=null;}
+}
+function deleteGymLogEntry(id){
+  _gymHoldTimer=null;
+  const prefs={...getPrefs()};
+  const entry=(prefs.gymLog||[]).find(e=>e.id===id);
+  if(!entry)return;
+  if(!confirm('Delete gym session on '+fmtDate(entry.date)+'?
+'+entry.checkIn+' – '+entry.checkOut+' ('+entry.durStr+')'))return;
+  prefs.gymLog=prefs.gymLog.filter(e=>e.id!==id);
+  window._prefs=prefs;
+  window._savePrefs(prefs);
+  toast('Entry deleted');
   renderToday();
 }
 
 function showSessionSummary(seconds,checkIn,checkOut){
-  const h=Math.floor(seconds/3600);
-  const m=Math.floor((seconds%3600)/60);
-  const s=seconds%60;
-  const timeStr=h>0?h+'h '+m+'m':m>0?m+'m '+s+'s':s+'s';
   const t=document.getElementById('toast');
-  t.innerHTML='💪 <b>'+timeStr+'</b> · '+checkIn+' → '+checkOut;
+  t.innerHTML='💪 <b>'+_fmtDur(seconds)+'</b> · '+checkIn+' → '+checkOut;
   t.className='toast success show';
   setTimeout(()=>{t.classList.remove('show');t.innerHTML='';},5000);
 }
@@ -2925,45 +3069,42 @@ function showSessionSummary(seconds,checkIn,checkOut){
 function tickGymTimer(){
   const el=document.getElementById('gymTimerDisplay');
   if(!el||!_gymSessionStart)return;
-  const elapsed=Math.floor((Date.now()-_gymSessionStart)/1000);
-  const h=Math.floor(elapsed/3600);
-  const m=Math.floor((elapsed%3600)/60);
-  const s=elapsed%60;
-  el.textContent=h>0?
-    h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'):
-    String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  const sec=Math.floor((Date.now()-_gymSessionStart)/1000);
+  const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
+  el.textContent=h>0?h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'):String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
 }
 
 function gymTimerRow(){
-  const log=(getPrefs().gymLog||[]).slice(0,5);
-  const histHTML=log.length?
+  const allLog=(getPrefs().gymLog||[]).slice(0,7);
+  const today=todayStr();
+
+  const histHTML=allLog.length?
     '<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">'+
-      '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px">Recent Sessions</div>'+
-      log.map(e=>
-        '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04)">'+
-          '<span style="font-size:12px;color:var(--text2)">'+fmtDate(e.date)+'</span>'+
+      '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px">Gym History · hold 3s to delete</div>'+
+      allLog.map(e=>{
+        const isToday=e.date===today;
+        const entryId=e.id||('gym'+e.date);
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;-webkit-user-select:none;"'+
+          ' ontouchstart="gymLogHoldStart(''+entryId+'')" ontouchend="gymLogHoldEnd()" ontouchcancel="gymLogHoldEnd()"'+
+          ' oncontextmenu="event.preventDefault();deleteGymLogEntry(''+entryId+'')">'+
+          '<span style="font-size:12px;color:'+(isToday?'var(--acc)':'var(--text2)')+';font-weight:'+(isToday?'700':'400')+'">'+
+            (isToday?'Today':fmtDate(e.date))+
+          '</span>'+
           '<span style="font-size:11px;color:var(--sub);font-family:var(--font-mono)">'+e.checkIn+' – '+e.checkOut+'</span>'+
           '<span style="font-size:12px;font-weight:700;color:var(--acc);font-family:var(--font-mono)">'+e.durStr+'</span>'+
-        '</div>'
-      ).join('')+
+        '</div>';
+      }).join('')+
     '</div>'
   :'';
 
   if(_gymSessionStart){
-    const elapsed=Math.floor((Date.now()-_gymSessionStart)/1000);
-    const h=Math.floor(elapsed/3600);
-    const m=Math.floor((elapsed%3600)/60);
-    const s=elapsed%60;
-    const t=h>0?h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'):String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
-    const checkInFmt=new Date(_gymSessionStart);
-    const ci=checkInFmt.getHours().toString().padStart(2,'0')+':'+checkInFmt.getMinutes().toString().padStart(2,'0');
+    const ci=_fmtTime(new Date(_gymSessionStart));
     return '<div class="gym-timer-row" style="flex-direction:column;align-items:stretch">'+
       '<div style="display:flex;align-items:center;gap:10px">'+
-        '<div>'+
-          '<div class="gym-timer-label">In Session · checked in '+ci+'</div>'+
-          '<div class="gym-timer-time" id="gymTimerDisplay">'+t+'</div>'+
+        '<div style="flex:1">'+
+          '<div class="gym-timer-label">🟢 In Session · checked in at '+ci+'</div>'+
+          '<div class="gym-timer-time" id="gymTimerDisplay">'+_elapsedStr(_gymSessionStart)+'</div>'+
         '</div>'+
-        '<div style="flex:1"></div>'+
         '<button class="gym-timer-btn end" onclick="endGymSession()">Check Out</button>'+
       '</div>'+
       histHTML+
@@ -2971,11 +3112,10 @@ function gymTimerRow(){
   } else {
     return '<div class="gym-timer-row" style="flex-direction:column;align-items:stretch">'+
       '<div style="display:flex;align-items:center;gap:10px">'+
-        '<div>'+
-          '<div class="gym-timer-label">Gym Session</div>'+
-          '<div style="font-size:12px;color:var(--sub);margin-top:2px">Tap when you arrive at the gym</div>'+
+        '<div style="flex:1">'+
+          '<div class="gym-timer-label">Gym Session Tracker</div>'+
+          '<div style="font-size:12px;color:var(--sub);margin-top:2px">Tap Check In when you arrive</div>'+
         '</div>'+
-        '<div style="flex:1"></div>'+
         '<button class="gym-timer-btn" onclick="startGymSession()">Check In</button>'+
       '</div>'+
       histHTML+
