@@ -1328,69 +1328,106 @@ function getWorkoutForDate(ds){
 // ── TODAY ──
 function renderToday(){
   try{
-  const now=new Date();const dow=now.getDay();const ds=todayStr();
-  const p=getPrefs();
-  if(!p||!SPLITS[p.split||'A']){
-    // prefs not ready yet — show minimal card
-    const tc=document.getElementById('todayCard');
-    if(tc)tc.innerHTML=`<div class="today-day">${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date().getDay()]}</div><div class="today-date" style="color:var(--sub);font-size:12px">${new Date().getDate()} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date().getMonth()]} ${new Date().getFullYear()}</div>`;
-    return;
-  }
-  const overrides=p.dayOverrides||{};
-  const workout=overrides[ds]||getWorkoutForDow(dow); // uses custom split if split==='C' 
-  const isOverridden=!!overrides[ds];
-  const isRest=workout==='Rest';
-  document.getElementById('splitBadge').textContent=split.label;
-  let cta='';
-  if(isRest){
-    cta=`<div style="margin-top:12px;font-size:13px;color:var(--sub);padding:12px;background:var(--s2);border-radius:var(--r-sm);text-align:center;border:1px solid var(--border)">Rest day — recover and grow</div>
-    <div class="today-cta" style="margin-top:10px"><button class="btn-ghost" style="flex:1;font-size:12px" onclick="openOverrideModal('${ds}','${workout}')">Train anyway</button></div>`;
-  } else {
-    const logged=getSessions().find(s=>s.date===ds);
-    cta=logged
-      ?`<div class="today-cta"><span style="font-size:13px;color:var(--green);font-weight:600">Logged</span><button class="btn-ghost" style="flex:1" onclick="nav('log')">Add / Edit</button><button class="btn-ghost" style="padding:10px 12px" onclick="openOverrideModal('${ds}','${workout}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.73-3.27"/></svg></button></div>`
-      :`<div class="today-cta"><button class="btn-primary ripple-host" onclick="quickLog('${workout}')" style="flex:1">Log Today's ${workout}</button><button class="btn-ghost" style="padding:10px 13px" title="Change workout" onclick="openOverrideModal('${ds}','${workout}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.73-3.27"/></svg></button></div>`;
-  }
-  const dn=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dow];
-  // Streak calc
-  const dates2=[...new Set(getSessions().map(s=>s.date))].sort((a,b)=>b.localeCompare(a));
-  let streak2=0;
-  for(let i=0;i<90;i++){
-    const d2=new Date(now);d2.setDate(now.getDate()-i);
-    const ds2=dateToStr(d2);
-    const w2=getWorkoutForDate(ds2);
-    if(w2==='Rest')continue;
-    if(dates2.includes(ds2))streak2++;
-    else if(i>0)break;
-  }
-  // Volume this week
-  const weekStart=new Date(now);weekStart.setDate(now.getDate()-((now.getDay()+6)%7));
-  const weekStartStr=dateToStr(weekStart);
-  const weekSessions=getSessions().filter(s=>s.date>=weekStartStr&&s.date<=ds);
-  const weekSets=weekSessions.reduce((a,s)=>a+s.exercises.reduce((b,e)=>b+e.sets.length,0),0);
+    const now=new Date();
+    const dow=now.getDay();
+    const ds=todayStr();
+    const p=getPrefs()||{split:'A'};
+    const splitKey=p.split||'A';
+    const splitObj=SPLITS[splitKey]||SPLITS['A'];
 
-  document.getElementById('todayCard').innerHTML=`
-    <div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <div>
-        <div class="today-day">${dn}</div>
+    // Update split badge
+    const badge=document.getElementById('splitBadge');
+    const badgeLabels={A:'Split A · Sun Rest',B:'Split B · Sat Rest',C:'Custom Split'};
+    if(badge) badge.textContent=badgeLabels[splitKey]||'Split A';
+
+    // Get today's workout
+    const overrides=p.dayOverrides||{};
+    const workout=overrides[ds]||getWorkoutForDow(dow);
+    const isOverridden=!!overrides[ds];
+    const isRest=workout==='Rest';
+    const dn=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dow];
+
+    // CTA buttons
+    let cta='';
+    if(isRest){
+      cta=`<div style="margin-top:12px;font-size:13px;color:var(--sub);padding:12px;background:var(--s2);border-radius:var(--r-sm);text-align:center;border:1px solid var(--border)">Rest day 💤 — recover and grow</div>
+      <div class="today-cta" style="margin-top:10px">
+        <button class="btn-ghost" style="flex:1;font-size:12px" onclick="openOverrideModal('${ds}','${workout}')">Train anyway</button>
+      </div>`;
+    } else {
+      const logged=getSessions().find(s=>s.date===ds);
+      if(logged){
+        cta=`<div class="today-cta">
+          <span style="font-size:13px;color:var(--green);font-weight:600;display:flex;align-items:center;gap:4px">✅ Logged</span>
+          <button class="btn-ghost" style="flex:1" onclick="nav('log')">Add / Edit</button>
+          <button class="btn-ghost" style="padding:10px 12px" onclick="openOverrideModal('${ds}','${workout}')">🔄</button>
+        </div>`;
+      } else {
+        cta=`<div class="today-cta">
+          <button class="btn-primary ripple-host" onclick="quickLog('${workout}')" style="flex:1">Log Today's ${workout}</button>
+          <button class="btn-ghost" style="padding:10px 13px" onclick="openOverrideModal('${ds}','${workout}')">🔄</button>
+        </div>`;
+      }
+    }
+
+    // Streak
+    const loggedDates=new Set(getSessions().map(s=>s.date));
+    let streak2=0;
+    for(let i=0;i<90;i++){
+      const d2=new Date(now);d2.setDate(now.getDate()-i);
+      const ds2=dateToStr(d2);
+      const w2=getWorkoutForDate(ds2);
+      if(w2==='Rest')continue;
+      if(loggedDates.has(ds2))streak2++;
+      else if(i>0)break;
+    }
+
+    // Week sets
+    const weekStart=new Date(now);
+    weekStart.setDate(now.getDate()-((now.getDay()+6)%7));
+    const weekStartStr=dateToStr(weekStart);
+    const weekSets=getSessions()
+      .filter(s=>s.date>=weekStartStr&&s.date<=ds)
+      .reduce((a,s)=>a+s.exercises.reduce((b,e)=>b+e.sets.length,0),0);
+
+    // Render
+    document.getElementById('todayCard').innerHTML=`
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="today-day">${dn}</div>
+          <div class="today-date">${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}</div>
+        </div>
+        <div style="text-align:right;display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+          ${streak2>1?`<div style="background:rgba(200,241,53,0.12);border:1px solid rgba(200,241,53,0.25);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;color:var(--acc)">🔥 ${streak2} day streak</div>`:''}
+          ${weekSets>0?`<div style="font-size:10px;color:var(--sub);font-family:var(--font-mono)">${weekSets} sets this week</div>`:''}
+        </div>
+      </div>
+      <div class="today-workout" style="margin-top:12px">
+        <span class="workout-chip ${chipClass(workout)}">${workout}</span>
+        ${isOverridden?`<span class="override-chip">custom</span>`:''}
+      </div>
+      ${cta}
+      ${gymTimerRow()}`;
+
+    // Restart gym timer tick if session is active
+    if(_gymSessionStart&&!_gymTimerInterval){
+      _gymTimerInterval=setInterval(tickGymTimer,1000);
+    }
+  }catch(err){
+    console.error('renderToday error:',err);
+    // Fallback — show minimal today card so app isn't blank
+    const tc=document.getElementById('todayCard');
+    if(tc){
+      const now=new Date();
+      const dn=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][now.getDay()];
+      tc.innerHTML=`<div class="today-day">${dn}</div>
         <div class="today-date">${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}</div>
-      </div>
-      <div style="text-align:right;display:flex;flex-direction:column;gap:4px">
-        ${streak2>0?`<div style="background:rgba(200,241,53,0.12);border:1px solid rgba(200,241,53,0.25);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;color:var(--acc)">🔥 ${streak2} streak</div>`:''}
-        ${weekSets>0?`<div style="font-size:10px;color:var(--sub);font-family:var(--font-mono)">${weekSets} sets this week</div>`:''}
-      </div>
-    </div>
-    <div class="today-workout" style="margin-top:10px">
-      <span class="workout-chip ${chipClass(workout)}">${workout}</span>
-      ${isOverridden?`<span class="override-chip">custom</span>`:''}
-    </div>
-    ${cta}
-    ${gymTimerRow()}`;
-  // Restart gym timer tick if running
-  if(_gymSessionStart&&!_gymTimerInterval){
-    _gymTimerInterval=setInterval(tickGymTimer,1000);
+        <div class="today-cta" style="margin-top:12px">
+          <button class="btn-ghost" onclick="forceReloadSessions()" style="width:100%">↻ Tap to reload data</button>
+        </div>
+        ${gymTimerRow()}`;
+    }
   }
-  }catch(err){console.error('renderToday error:',err);}
 }
 
 function renderWeekStrip(){
