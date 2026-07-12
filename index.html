@@ -2840,30 +2840,49 @@ function startGymSession(){
 function endGymSession(){
   if(!_gymSessionStart)return;
   const elapsed=Math.floor((Date.now()-_gymSessionStart)/1000);
-  const mins=Math.floor(elapsed/60);
-  const secs=elapsed%60;
   clearInterval(_gymTimerInterval);_gymTimerInterval=null;
+  const checkInTime=new Date(_gymSessionStart);
+  const checkOutTime=new Date();
   _gymSessionStart=null;
   localStorage.removeItem('ll_gym_session_start');
-  // Save to today's session notes
-  const summary=mins+'m '+secs+'s';
-  toast('Gym session: '+summary,'success');
-  // Show completion card
-  showSessionSummary(elapsed);
+
+  // Format times
+  const fmt=d=>d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+  const h=Math.floor(elapsed/3600);
+  const m=Math.floor((elapsed%3600)/60);
+  const s=elapsed%60;
+  const durStr=h>0?h+'h '+m+'m':m+'m '+s+'s';
+
+  // Save to gym log history in prefs
+  const entry={
+    date:todayStr(),
+    checkIn:fmt(checkInTime),
+    checkOut:fmt(checkOutTime),
+    duration:elapsed,
+    durStr
+  };
+  const prefs={...getPrefs()};
+  prefs.gymLog=prefs.gymLog||[];
+  // Replace same-day entry if exists
+  prefs.gymLog=prefs.gymLog.filter(e=>e.date!==entry.date);
+  prefs.gymLog.unshift(entry);
+  if(prefs.gymLog.length>90)prefs.gymLog=prefs.gymLog.slice(0,90); // keep 3 months
+  window._prefs=prefs;
+  window._savePrefs(prefs);
+
+  showSessionSummary(elapsed,fmt(checkInTime),fmt(checkOutTime));
   renderToday();
 }
 
-function showSessionSummary(seconds){
-  const mins=Math.floor(seconds/60);
-  const secs=seconds%60;
-  const h=Math.floor(mins/60);
-  const m=mins%60;
-  const timeStr=h>0?h+'h '+m+'m':m+'m '+secs+'s';
-  // Flash a big toast
+function showSessionSummary(seconds,checkIn,checkOut){
+  const h=Math.floor(seconds/3600);
+  const m=Math.floor((seconds%3600)/60);
+  const s=seconds%60;
+  const timeStr=h>0?h+'h '+m+'m':m>0?m+'m '+s+'s':s+'s';
   const t=document.getElementById('toast');
-  t.innerHTML='💪 Session complete — <b>'+timeStr+'</b> in the gym!';
+  t.innerHTML='💪 <b>'+timeStr+'</b> · '+checkIn+' → '+checkOut;
   t.className='toast success show';
-  setTimeout(()=>{t.classList.remove('show');t.innerHTML='';},4000);
+  setTimeout(()=>{t.classList.remove('show');t.innerHTML='';},5000);
 }
 
 function tickGymTimer(){
@@ -2879,22 +2898,50 @@ function tickGymTimer(){
 }
 
 function gymTimerRow(){
+  const log=(getPrefs().gymLog||[]).slice(0,5);
+  const histHTML=log.length?
+    '<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">'+
+      '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px">Recent Sessions</div>'+
+      log.map(e=>
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04)">'+
+          '<span style="font-size:12px;color:var(--text2)">'+fmtDate(e.date)+'</span>'+
+          '<span style="font-size:11px;color:var(--sub);font-family:var(--font-mono)">'+e.checkIn+' – '+e.checkOut+'</span>'+
+          '<span style="font-size:12px;font-weight:700;color:var(--acc);font-family:var(--font-mono)">'+e.durStr+'</span>'+
+        '</div>'
+      ).join('')+
+    '</div>'
+  :'';
+
   if(_gymSessionStart){
     const elapsed=Math.floor((Date.now()-_gymSessionStart)/1000);
     const h=Math.floor(elapsed/3600);
     const m=Math.floor((elapsed%3600)/60);
     const s=elapsed%60;
     const t=h>0?h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'):String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
-    return '<div class="gym-timer-row">'+
-      '<div><div class="gym-timer-label">In Session</div><div class="gym-timer-time" id="gymTimerDisplay">'+t+'</div></div>'+
-      '<div style="flex:1"></div>'+
-      '<button class="gym-timer-btn end" onclick="endGymSession()">End Session</button>'+
+    const checkInFmt=new Date(_gymSessionStart);
+    const ci=checkInFmt.getHours().toString().padStart(2,'0')+':'+checkInFmt.getMinutes().toString().padStart(2,'0');
+    return '<div class="gym-timer-row" style="flex-direction:column;align-items:stretch">'+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<div>'+
+          '<div class="gym-timer-label">In Session · checked in '+ci+'</div>'+
+          '<div class="gym-timer-time" id="gymTimerDisplay">'+t+'</div>'+
+        '</div>'+
+        '<div style="flex:1"></div>'+
+        '<button class="gym-timer-btn end" onclick="endGymSession()">Check Out</button>'+
+      '</div>'+
+      histHTML+
     '</div>';
   } else {
-    return '<div class="gym-timer-row">'+
-      '<div><div class="gym-timer-label">Gym Session Timer</div><div style="font-size:12px;color:var(--sub);margin-top:2px">Track your workout duration</div></div>'+
-      '<div style="flex:1"></div>'+
-      '<button class="gym-timer-btn" onclick="startGymSession()">Start</button>'+
+    return '<div class="gym-timer-row" style="flex-direction:column;align-items:stretch">'+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<div>'+
+          '<div class="gym-timer-label">Gym Session</div>'+
+          '<div style="font-size:12px;color:var(--sub);margin-top:2px">Tap when you arrive at the gym</div>'+
+        '</div>'+
+        '<div style="flex:1"></div>'+
+        '<button class="gym-timer-btn" onclick="startGymSession()">Check In</button>'+
+      '</div>'+
+      histHTML+
     '</div>';
   }
 }
