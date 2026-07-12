@@ -3004,7 +3004,13 @@ function showGymCheckoutUndo(entry){
   t.id='gymUndoToast';
   t.style.cssText='position:fixed;bottom:150px;left:50%;transform:translateX(-50%);background:var(--s1);color:var(--text);border:1px solid var(--border2);font-size:13px;padding:11px 8px 11px 16px;border-radius:14px;z-index:600;display:flex;align-items:center;gap:10px;box-shadow:0 4px 24px rgba(0,0,0,0.5);white-space:nowrap;animation:fadeUp 0.3s both;';
   t.innerHTML='<span>💪 <b>'+entry.durStr+'</b> · '+entry.checkIn+' – '+entry.checkOut+'</span>'+
-    '<button onclick="undoGymCheckout(''+entry.id+'')" style="background:var(--acc);color:#000;border:none;border-radius:8px;padding:6px 14px;font-weight:800;font-size:12px;cursor:pointer;font-family:'Inter',sans-serif">UNDO</button>';
+    '<button id="gymUndoBtn" style="background:var(--acc);color:#000;border:none;border-radius:8px;padding:6px 14px;font-weight:800;font-size:12px;cursor:pointer;font-family:Inter,sans-serif">UNDO</button>';
+  // Attach onclick via JS to avoid inline string quote issues
+  const undoId=entry.id;
+  requestAnimationFrame(()=>{
+    const btn=document.getElementById('gymUndoBtn');
+    if(btn) btn.addEventListener('click',()=>undoGymCheckout(undoId));
+  });
   // countdown bar
   const bar=document.createElement('div');
   bar.style.cssText='position:absolute;bottom:0;left:0;height:2px;background:var(--acc);border-radius:0 0 14px 14px;width:100%;transition:width 6s linear;';
@@ -3050,8 +3056,7 @@ function deleteGymLogEntry(id){
   const prefs={...getPrefs()};
   const entry=(prefs.gymLog||[]).find(e=>e.id===id);
   if(!entry)return;
-  if(!confirm('Delete gym session on '+fmtDate(entry.date)+'?
-'+entry.checkIn+' – '+entry.checkOut+' ('+entry.durStr+')'))return;
+  if(!confirm('Delete: '+fmtDate(entry.date)+' '+entry.checkIn+' to '+entry.checkOut+' ('+entry.durStr+')'))return;
   prefs.gymLog=prefs.gymLog.filter(e=>e.id!==id);
   window._prefs=prefs;
   window._savePrefs(prefs);
