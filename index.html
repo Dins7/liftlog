@@ -3153,13 +3153,13 @@ function buildGymTimerRow(){
 
     const histLabel=document.createElement('div');
     histLabel.style.cssText='font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px';
-    histLabel.textContent='Gym History · hold 3s to delete';
+    histLabel.textContent='Gym History · tap × or hold 3s to delete';
     hist.appendChild(histLabel);
 
     allLog.forEach(e=>{
       const entryId=e.id||('gym'+e.date);
       const row=document.createElement('div');
-      row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04)';
+      row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);gap:8px';
 
       const dateEl=document.createElement('span');
       const isToday=e.date===today;
@@ -3174,18 +3174,34 @@ function buildGymTimerRow(){
       durEl.style.cssText='font-size:12px;font-weight:700;color:var(--acc);font-family:var(--font-mono)';
       durEl.textContent=e.durStr;
 
-      // Hold to delete
+      const delBtn=document.createElement('button');
+      delBtn.type='button';
+      delBtn.textContent='×';
+      delBtn.setAttribute('aria-label','Delete entry');
+      delBtn.style.cssText='flex-shrink:0;width:22px;height:22px;line-height:20px;text-align:center;border-radius:50%;border:1px solid var(--border2);background:var(--s2);color:var(--sub);font-size:15px;cursor:pointer;transition:var(--transition)';
+      delBtn.addEventListener('mouseenter',()=>{delBtn.style.color='var(--red)';delBtn.style.borderColor='var(--red)';delBtn.style.background='var(--red-dim)';});
+      delBtn.addEventListener('mouseleave',()=>{delBtn.style.color='var(--sub)';delBtn.style.borderColor='var(--border2)';delBtn.style.background='var(--s2)';});
+      delBtn.addEventListener('click',ev=>{ev.stopPropagation();deleteGymLogEntry(entryId);});
+
+      // Hold to delete (touch) + hold with mouse (desktop) as a secondary option
       let holdTimer=null;
+      const clearHold=()=>{if(holdTimer){clearTimeout(holdTimer);holdTimer=null;}};
       row.addEventListener('touchstart',()=>{
         holdTimer=setTimeout(()=>deleteGymLogEntry(entryId),3000);
       },{passive:true});
-      row.addEventListener('touchend',()=>{if(holdTimer){clearTimeout(holdTimer);holdTimer=null;}});
-      row.addEventListener('touchcancel',()=>{if(holdTimer){clearTimeout(holdTimer);holdTimer=null;}});
+      row.addEventListener('touchend',clearHold);
+      row.addEventListener('touchcancel',clearHold);
+      row.addEventListener('mousedown',()=>{
+        holdTimer=setTimeout(()=>deleteGymLogEntry(entryId),3000);
+      });
+      row.addEventListener('mouseup',clearHold);
+      row.addEventListener('mouseleave',clearHold);
       row.addEventListener('contextmenu',e2=>{e2.preventDefault();deleteGymLogEntry(entryId);});
 
       row.appendChild(dateEl);
       row.appendChild(timeEl);
       row.appendChild(durEl);
+      row.appendChild(delBtn);
       hist.appendChild(row);
     });
     wrap.appendChild(hist);
