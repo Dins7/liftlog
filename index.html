@@ -1801,12 +1801,12 @@ function toggleDrop(btn){
 }
 
 // ── PLATE CALCULATOR ──
-// Weight entered is the plate weight to load — split evenly per side.
-// No barbell weight is added/subtracted.
+// The weight you type in the log form IS the per-side weight (what you load
+// on ONE side of the bar/machine) — total lifted = that × 2. No barbell
+// weight is added/subtracted separately.
 const PLATE_DENOMS=[25,20,15,12.5,10,7.5,5,2.5];
-function calcPlatesPerSide(totalWeight){
-  const perSide=totalWeight/2;
-  let remaining=Math.round(perSide*100)/100;
+function calcPlatesPerSide(perSideInput){
+  let remaining=Math.round(perSideInput*100)/100;
   const plates=[];
   PLATE_DENOMS.forEach(d=>{
     while(remaining+1e-9>=d){
@@ -1814,33 +1814,42 @@ function calcPlatesPerSide(totalWeight){
       remaining=Math.round((remaining-d)*100)/100;
     }
   });
-  return {perSide,plates,remainder:remaining};
+  return {perSide:perSideInput,total:Math.round(perSideInput*2*100)/100,plates,remainder:remaining};
 }
 function showPlateCalc(btn){
   const row=btn.closest('.set-row');
   const kgInput=row.querySelector('.kg-input');
-  const total=parseFloat(kgInput.value)||0;
+  const entered=parseFloat(kgInput.value)||0;
   const content=document.getElementById('plateModalContent');
   const eid=row.id.split('-')[1];
   const sel=document.getElementById('msel-'+eid);
-  const isDB=sel&&isDumbbellExercise(sel.value);
+  const mode=sel?getWeightMode(sel.value):'plate';
 
-  if(total<=0){
+  if(entered<=0){
     content.innerHTML='<div class="plate-empty">Enter a weight above first, then tap the plate icon.</div>';
     openModal('plateModal');
     return;
   }
 
-  if(isDB){
+  if(mode==='dumbbell'){
     content.innerHTML=`
-      <div class="plate-total">${total}<span style="font-size:16px;color:var(--sub)">kg per hand</span></div>
-      <div class="plate-sub">${Math.round(total*2*100)/100}kg total (both hands)</div>
+      <div class="plate-total">${entered}<span style="font-size:16px;color:var(--sub)">kg per hand</span></div>
+      <div class="plate-sub">${Math.round(entered*2*100)/100}kg total (both hands)</div>
     `;
     openModal('plateModal');
     return;
   }
 
-  const {perSide,plates,remainder}=calcPlatesPerSide(total);
+  if(mode==='single'){
+    content.innerHTML=`
+      <div class="plate-total">${entered}<span style="font-size:16px;color:var(--sub)">kg total</span></div>
+      <div class="plate-sub">Single-load machine — this is the full weight, nothing to double</div>
+    `;
+    openModal('plateModal');
+    return;
+  }
+
+  const {perSide,total,plates,remainder}=calcPlatesPerSide(entered);
 
   let stackHTML='';
   if(plates.length){
@@ -1854,7 +1863,7 @@ function showPlateCalc(btn){
 
   content.innerHTML=`
     <div class="plate-total">${total}<span style="font-size:16px;color:var(--sub)">kg total</span></div>
-    <div class="plate-sub">${perSide}kg per side</div>
+    <div class="plate-sub">${perSide}kg per side (as entered)</div>
     <div class="plate-side-label">Load per side</div>
     <div class="plate-stack">${stackHTML}</div>
     ${remainder>0?`<div class="plate-remainder">⚠ ${remainder}kg per side can't be made with these plates — closest is ${(perSide-remainder)}kg/side (${total-remainder*2}kg total)</div>`:''}
@@ -1875,11 +1884,31 @@ function checkPRLive(id,inp){
   }
 }
 
-// ── DUMBBELL PER-HAND TOTAL BADGE ──
-// Dumbbell exercises: the number entered is already the weight in EACH hand,
-// not a total to split — so just show a tiny "×2 = Xkg" note, no plate math.
+// ── WEIGHT ENTRY MODES ──
+// 'dumbbell': entered = weight per hand, total = ×2
+// 'single'  : entered = the actual total load (selectorized stack / single rod
+//             machines like Preacher Curl) — never doubled, no plate math
+// 'plate'   : entered = weight per side of a barbell/plate-loaded machine,
+//             total = ×2 (default — leg press, squat, bench, Smith machine…)
 function isDumbbellExercise(name){
   return /dumbbell|\bdb\b/i.test(name||'');
+}
+const SINGLE_LOAD_EXERCISES=new Set([
+  'Incline Chest Press Machine','Pec Fly Machine','Preacher Curl Machine',
+  'Lat Pulldown Machine','Seated Mid Back Row Machine','Chest-Supported Upper Back Row',
+  'Straight Arm Lat Pullover Machine','Cable Pushdown','Overhead Cable Triceps Extension',
+  'Machine Lateral Raise','Cable Lateral Raise','Cable Front Raise','Reverse Pec Deck (Rear Fly)',
+  'Seated Leg Curl','Seated Leg Extension','Seated Calf Raises','Pull-ups'
+]);
+function isSingleLoadExercise(name){
+  if(!name)return false;
+  if(SINGLE_LOAD_EXERCISES.has(name))return true;
+  return /\bcable\b|pec deck|preacher/i.test(name);
+}
+function getWeightMode(name){
+  if(isDumbbellExercise(name))return'dumbbell';
+  if(isSingleLoadExercise(name))return'single';
+  return'plate';
 }
 function updateWeightBadge(id,inp){
   const sel=document.getElementById('msel-'+id);
@@ -1887,8 +1916,8 @@ function updateWeightBadge(id,inp){
   if(!field)return;
   let badge=field.querySelector('.dumbbell-badge');
   const val=parseFloat(inp.value)||0;
-  const isDB=sel&&isDumbbellExercise(sel.value);
-  if(isDB&&val>0){
+  const mode=sel?getWeightMode(sel.value):'plate';
+  if(mode!=='single'&&val>0){
     if(!badge){badge=document.createElement('span');badge.className='dumbbell-badge';field.appendChild(badge);}
     badge.textContent='×2='+(Math.round(val*2*100)/100)+'kg';
   } else if(badge){
