@@ -104,11 +104,11 @@ padding-top:env(safe-area-inset-top,0px);}
 .view.active>*:nth-child(4){animation-delay:0.12s}
 
 /* ── TODAY CARD ── */
-.today-card{background:var(--s1);border:1px solid var(--border);border-radius:18px;padding:20px;margin-bottom:14px;position:relative;overflow:hidden;box-shadow:var(--shadow-md)}
-.today-card::before{content:'';position:absolute;top:-40px;right:-20px;width:140px;height:140px;background:radial-gradient(circle,var(--acc-glow) 0%,transparent 70%);pointer-events:none}
-.today-day{font-family:'Bebas Neue',sans-serif;font-size:42px;letter-spacing:2px;color:var(--acc);line-height:1}
-.today-date{font-size:11px;color:var(--sub);margin-top:2px;font-family:var(--font-mono);letter-spacing:0.5px}
-.today-workout{margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.today-card{background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px;position:relative;overflow:hidden;box-shadow:var(--shadow-md)}
+.today-card::before{content:'';position:absolute;top:-40px;right:-20px;width:120px;height:120px;background:radial-gradient(circle,var(--acc-glow) 0%,transparent 70%);pointer-events:none}
+.today-day{font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:1.5px;color:var(--acc);line-height:1}
+.today-date{font-size:10px;color:var(--sub);margin-top:1px;font-family:var(--font-mono);letter-spacing:0.5px}
+.today-workout{margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .workout-chip{font-size:11px;font-weight:700;padding:5px 13px;border-radius:20px;letter-spacing:0.4px;display:inline-block;transition:var(--transition)}
 .chip-chest{background:rgba(255,82,82,0.12);color:#ff7878;border:1px solid rgba(255,82,82,0.2)}
 .chip-legs{background:rgba(255,140,58,0.12);color:#ff8c3a;border:1px solid rgba(255,140,58,0.2)}
@@ -116,7 +116,7 @@ padding-top:env(safe-area-inset-top,0px);}
 .chip-back{background:rgba(184,125,255,0.12);color:var(--purple);border:1px solid rgba(184,125,255,0.2)}
 .chip-arms{background:rgba(90,180,255,0.12);color:var(--blue);border:1px solid rgba(90,180,255,0.2)}
 .chip-rest{background:rgba(80,80,90,0.12);color:var(--sub);border:1px solid var(--border2)}
-.today-cta{margin-top:14px;display:flex;gap:8px}
+.today-cta{margin-top:10px;display:flex;gap:8px}
 
 /* ── WEEK STRIP ── */
 .week-strip{display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;margin-bottom:16px;-webkit-overflow-scrolling:touch}
@@ -409,6 +409,24 @@ body.timer-active .view{padding-bottom:158px;}
 .gym-timer-btn:active{transform:scale(0.96);background:var(--acc2)}
 .gym-timer-btn.end{background:var(--red);color:#fff}
 .gym-timer-btn.end:active{background:#cc2222}
+/* compact gym widget on Today card */
+.gym-compact{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);margin-top:10px}
+.gym-compact-dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0}
+.gym-compact-dot.live{background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 1.4s infinite}
+.gym-compact-text{font-size:12px;color:var(--sub);flex:1;min-width:0}
+.gym-compact-time{font-family:var(--font-mono);font-weight:700;color:var(--acc);font-size:13px}
+.gym-compact-btn{background:var(--acc);color:#000;border:none;border-radius:7px;padding:6px 12px;font-size:11px;font-weight:800;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;transition:var(--transition)}
+.gym-compact-btn:active{transform:scale(0.94)}
+.gym-compact-btn.end{background:var(--red);color:#fff}
+/* gym history in Progress tab */
+.gym-hist-row{display:flex;align-items:center;gap:8px;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,0.05)}
+.gym-hist-row:last-child{border-bottom:none}
+.gym-hist-date{font-size:12px;color:var(--text2);min-width:64px;flex-shrink:0}
+.gym-hist-date.is-today{color:var(--acc);font-weight:700}
+.gym-hist-times{font-size:11px;color:var(--sub);font-family:var(--font-mono);flex:1}
+.gym-hist-dur{font-size:12px;font-weight:700;color:var(--acc);font-family:var(--font-mono);flex-shrink:0}
+.gym-hist-del{background:transparent;border:none;color:var(--muted);cursor:pointer;padding:4px;flex-shrink:0;display:flex;align-items:center;transition:var(--transition)}
+.gym-hist-del:active{color:var(--red);transform:scale(0.9)}
 
 /* ── RPE SLIDER ── */
 .rpe-section{margin-top:14px;padding:14px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm)}
@@ -605,6 +623,10 @@ body.timer-active .view{padding-bottom:158px;}
       <select id="progExSelect" onchange="renderLineChart()"><option value="">— pick a machine —</option></select>
     </div>
     <div class="chart-wrap"><div id="lineChartWrap"></div><div class="chart-tooltip" id="chartTooltip"></div></div>
+  </div>
+  <div class="prog-card">
+    <div class="prog-card-title">Gym Sessions · Check In / Out History</div>
+    <div id="gymHistoryContainer"></div>
   </div>
 </div>
 
@@ -2095,6 +2117,51 @@ function renderProgress(){
   const sel=document.getElementById('progExSelect');const prev=sel.value;
   sel.innerHTML='<option value="">— pick a machine —</option>'+Object.keys(allEx).sort().map(n=>`<option value="${n}"${n===prev?' selected':''}>${n}</option>`).join('');
   renderLineChart();
+  renderGymHistorySection();
+}
+
+function renderGymHistorySection(){
+  const container=document.getElementById('gymHistoryContainer');
+  if(!container)return;
+  container.innerHTML='';
+  const log=(getPrefs().gymLog||[]);
+  const today=todayStr();
+  if(!log.length){
+    const empty=document.createElement('div');
+    empty.style.cssText='color:var(--sub);font-size:13px;padding:8px 0;text-align:center';
+    empty.textContent='No gym sessions logged yet — check in from the Today tab';
+    container.appendChild(empty);
+    return;
+  }
+  log.forEach(e=>{
+    const entryId=e.id||('gym'+e.date);
+    const row=document.createElement('div');
+    row.className='gym-hist-row';
+
+    const dateEl=document.createElement('span');
+    const isToday=e.date===today;
+    dateEl.className='gym-hist-date'+(isToday?' is-today':'');
+    dateEl.textContent=isToday?'Today':fmtDate(e.date);
+
+    const timesEl=document.createElement('span');
+    timesEl.className='gym-hist-times';
+    timesEl.textContent=e.checkIn+' – '+e.checkOut;
+
+    const durEl=document.createElement('span');
+    durEl.className='gym-hist-dur';
+    durEl.textContent=e.durStr;
+
+    const delBtn=document.createElement('button');
+    delBtn.className='gym-hist-del';
+    delBtn.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>';
+    delBtn.addEventListener('click',()=>deleteGymLogEntry(entryId));
+
+    row.appendChild(dateEl);
+    row.appendChild(timesEl);
+    row.appendChild(durEl);
+    row.appendChild(delBtn);
+    container.appendChild(row);
+  });
 }
 function renderLineChart(){
   const name=document.getElementById('progExSelect').value;
@@ -3065,7 +3132,8 @@ function deleteGymLogEntry(id){
   window._prefs=prefs;
   window._savePrefs(prefs);
   toast('Entry deleted');
-  renderToday();
+  if(currentView==='progress') renderGymHistorySection();
+  else renderToday();
 }
 
 function showSessionSummary(seconds,checkIn,checkOut){
@@ -3089,122 +3157,35 @@ function gymTimerRow(){
 }
 
 function buildGymTimerRow(){
+  // Compact single-line widget for the Today card.
+  // Full check-in/out history lives in the Progress tab (renderGymHistorySection).
   const container=document.getElementById('gymTimerContainer');
   if(!container)return;
+  container.innerHTML='';
 
-  const allLog=(getPrefs().gymLog||[]).slice(0,7);
-  const today=todayStr();
-
-  // Outer wrapper
   const wrap=document.createElement('div');
-  wrap.className='gym-timer-row';
-  wrap.style.flexDirection='column';
-  wrap.style.alignItems='stretch';
+  wrap.className='gym-compact';
 
-  // Top row
-  const topRow=document.createElement('div');
-  topRow.style.cssText='display:flex;align-items:center;gap:10px';
+  const dot=document.createElement('div');
+  dot.className='gym-compact-dot'+(_gymSessionStart?' live':'');
 
-  const leftDiv=document.createElement('div');
-  leftDiv.style.flex='1';
+  const text=document.createElement('div');
+  text.className='gym-compact-text';
 
   if(_gymSessionStart){
-    const label=document.createElement('div');
-    label.className='gym-timer-label';
-    label.textContent='🟢 In Session · checked in at '+_fmtTime(new Date(_gymSessionStart));
-    const timeEl=document.createElement('div');
-    timeEl.className='gym-timer-time';
-    timeEl.id='gymTimerDisplay';
-    timeEl.textContent=_elapsedStr(_gymSessionStart);
-    leftDiv.appendChild(label);
-    leftDiv.appendChild(timeEl);
-
+    text.innerHTML='In gym · <span class="gym-compact-time" id="gymTimerDisplay">'+_elapsedStr(_gymSessionStart)+'</span>';
     const outBtn=document.createElement('button');
-    outBtn.className='gym-timer-btn end';
+    outBtn.className='gym-compact-btn end';
     outBtn.textContent='Check Out';
     outBtn.addEventListener('click',endGymSession);
-
-    topRow.appendChild(leftDiv);
-    topRow.appendChild(outBtn);
+    wrap.appendChild(dot);wrap.appendChild(text);wrap.appendChild(outBtn);
   } else {
-    const label=document.createElement('div');
-    label.className='gym-timer-label';
-    label.textContent='Gym Session Tracker';
-    const sub=document.createElement('div');
-    sub.style.cssText='font-size:12px;color:var(--sub);margin-top:2px';
-    sub.textContent='Tap Check In when you arrive at the gym';
-    leftDiv.appendChild(label);
-    leftDiv.appendChild(sub);
-
+    text.textContent='Gym session';
     const inBtn=document.createElement('button');
-    inBtn.className='gym-timer-btn';
+    inBtn.className='gym-compact-btn';
     inBtn.textContent='Check In';
     inBtn.addEventListener('click',startGymSession);
-
-    topRow.appendChild(leftDiv);
-    topRow.appendChild(inBtn);
-  }
-  wrap.appendChild(topRow);
-
-  // History
-  if(allLog.length){
-    const hist=document.createElement('div');
-    hist.style.cssText='margin-top:10px;border-top:1px solid var(--border);padding-top:10px';
-
-    const histLabel=document.createElement('div');
-    histLabel.style.cssText='font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px';
-    histLabel.textContent='Gym History · tap × or hold 3s to delete';
-    hist.appendChild(histLabel);
-
-    allLog.forEach(e=>{
-      const entryId=e.id||('gym'+e.date);
-      const row=document.createElement('div');
-      row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);gap:8px';
-
-      const dateEl=document.createElement('span');
-      const isToday=e.date===today;
-      dateEl.style.cssText='font-size:12px;font-weight:'+(isToday?'700':'400')+';color:'+(isToday?'var(--acc)':'var(--text2)');
-      dateEl.textContent=isToday?'Today':fmtDate(e.date);
-
-      const timeEl=document.createElement('span');
-      timeEl.style.cssText='font-size:11px;color:var(--sub);font-family:var(--font-mono)';
-      timeEl.textContent=e.checkIn+' – '+e.checkOut;
-
-      const durEl=document.createElement('span');
-      durEl.style.cssText='font-size:12px;font-weight:700;color:var(--acc);font-family:var(--font-mono)';
-      durEl.textContent=e.durStr;
-
-      const delBtn=document.createElement('button');
-      delBtn.type='button';
-      delBtn.textContent='×';
-      delBtn.setAttribute('aria-label','Delete entry');
-      delBtn.style.cssText='flex-shrink:0;width:22px;height:22px;line-height:20px;text-align:center;border-radius:50%;border:1px solid var(--border2);background:var(--s2);color:var(--sub);font-size:15px;cursor:pointer;transition:var(--transition)';
-      delBtn.addEventListener('mouseenter',()=>{delBtn.style.color='var(--red)';delBtn.style.borderColor='var(--red)';delBtn.style.background='var(--red-dim)';});
-      delBtn.addEventListener('mouseleave',()=>{delBtn.style.color='var(--sub)';delBtn.style.borderColor='var(--border2)';delBtn.style.background='var(--s2)';});
-      delBtn.addEventListener('click',ev=>{ev.stopPropagation();deleteGymLogEntry(entryId);});
-
-      // Hold to delete (touch) + hold with mouse (desktop) as a secondary option
-      let holdTimer=null;
-      const clearHold=()=>{if(holdTimer){clearTimeout(holdTimer);holdTimer=null;}};
-      row.addEventListener('touchstart',()=>{
-        holdTimer=setTimeout(()=>deleteGymLogEntry(entryId),3000);
-      },{passive:true});
-      row.addEventListener('touchend',clearHold);
-      row.addEventListener('touchcancel',clearHold);
-      row.addEventListener('mousedown',()=>{
-        holdTimer=setTimeout(()=>deleteGymLogEntry(entryId),3000);
-      });
-      row.addEventListener('mouseup',clearHold);
-      row.addEventListener('mouseleave',clearHold);
-      row.addEventListener('contextmenu',e2=>{e2.preventDefault();deleteGymLogEntry(entryId);});
-
-      row.appendChild(dateEl);
-      row.appendChild(timeEl);
-      row.appendChild(durEl);
-      row.appendChild(delBtn);
-      hist.appendChild(row);
-    });
-    wrap.appendChild(hist);
+    wrap.appendChild(dot);wrap.appendChild(text);wrap.appendChild(inBtn);
   }
 
   container.appendChild(wrap);
