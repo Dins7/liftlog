@@ -176,7 +176,7 @@ select option{background:#1a1a1e;color:var(--text)}
 input:focus,select:focus,textarea:focus{border-color:var(--acc);background:var(--s3);box-shadow:0 0 0 3px var(--acc-dim)}
 input[type=number]{font-family:var(--font-mono)}
 textarea{resize:none;line-height:1.5}
-.field{margin-bottom:13px}
+.field{margin-bottom:13px;position:relative}
 .row2{display:flex;gap:10px}
 .row2 .field{flex:1;margin-bottom:0}
 
@@ -192,7 +192,7 @@ textarea{resize:none;line-height:1.5}
 .pr-hint{font-size:11px;color:var(--green);min-height:16px;margin-bottom:5px;font-weight:500}
 
 /* ── SET ROW ── */
-.set-row{display:grid;grid-template-columns:24px 1fr 1fr 36px 24px;gap:6px;align-items:end;margin-bottom:8px}
+.set-row{display:grid;grid-template-columns:24px 1fr 1fr 28px 36px 24px;gap:6px;align-items:end;margin-bottom:8px}
 .set-label{font-family:var(--font-mono);font-size:11px;color:var(--acc);padding-bottom:11px;text-align:center;font-weight:600}
 .set-row .field{margin-bottom:0}
 .set-row input[type=number]{font-size:16px;text-align:center;padding:10px 4px;font-weight:600}
@@ -201,6 +201,18 @@ textarea{resize:none;line-height:1.5}
 .rm-set-btn:hover{color:var(--red)}
 /* drop set button — large tap target */
 .drop-btn{min-width:36px;height:36px;background:var(--s3);border:1.5px solid var(--border2);border-radius:6px;color:var(--muted);font-size:11px;font-weight:800;cursor:pointer;transition:var(--transition);letter-spacing:.5px;margin-bottom:6px;font-family:'Inter',sans-serif}
+.plate-btn{min-width:28px;height:36px;background:var(--s3);border:1.5px solid var(--border2);border-radius:6px;color:var(--sub);font-size:13px;cursor:pointer;transition:var(--transition);margin-bottom:6px;padding:0}
+.plate-btn:active{transform:scale(0.92);border-color:var(--acc);color:var(--acc)}
+.dumbbell-badge{position:absolute;top:19px;right:5px;font-size:8px;font-weight:700;color:var(--acc);font-family:var(--font-mono);letter-spacing:0.2px;pointer-events:none;line-height:1;z-index:1}
+
+/* ── PLATE CALCULATOR ── */
+.plate-side-label{font-size:11px;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.plate-total{font-family:'Bebas Neue',sans-serif;font-size:36px;color:var(--acc);letter-spacing:1px;line-height:1;margin-bottom:2px}
+.plate-sub{font-size:12px;color:var(--sub);margin-bottom:16px}
+.plate-stack{display:flex;align-items:flex-end;gap:4px;flex-wrap:wrap;padding:14px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:8px}
+.plate-disc{display:flex;align-items:center;justify-content:center;border-radius:6px;background:var(--acc-dim);border:1.5px solid var(--acc);color:var(--acc);font-family:var(--font-mono);font-weight:700;font-size:11px;flex-shrink:0}
+.plate-empty{font-size:13px;color:var(--sub);padding:10px 0}
+.plate-remainder{font-size:12px;color:var(--orange);margin-top:6px}
 .drop-btn:active{transform:scale(0.92)}
 .drop-btn-on{background:rgba(255,79,79,0.18);border-color:var(--red);color:var(--red) !important}
 .pr-flash{border-color:var(--acc)!important;box-shadow:0 0 0 3px var(--acc-dim)!important}
@@ -725,6 +737,15 @@ body.timer-active .view{padding-bottom:158px;}
 </div>
 
 <!-- MODALS -->
+<div class="modal-overlay" id="plateModal" onclick="closeBgModal('plateModal',event)">
+  <div class="modal-box">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Plate Calculator</div>
+    <div id="plateModalContent"></div>
+    <button class="btn-ghost" onclick="closeModal('plateModal')" style="width:100%;margin-top:8px">Close</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="overrideModal" onclick="closeBgModal('overrideModal',event)">
   <div class="modal-box">
     <div class="modal-handle"></div>
@@ -1728,6 +1749,7 @@ function onMachineChange(id){
   const muscle=opt.dataset.muscle||'';
   document.getElementById('mhint-'+id).textContent=muscle?'→ '+muscle:'';
   updatePRHint(id,sel.value);
+  refreshWeightBadges(id);
 }
 function confirmAddMachine(){
   const name=document.getElementById('newMachineName').value.trim();
@@ -1764,16 +1786,80 @@ function addSetRow(id,prefillW,prefillR,prefillDrop){
   // Use a visible tap button for drop set instead of tiny checkbox
   row.innerHTML=`
     <span class="set-label">S${sn}</span>
-    <div class="field"><label>kg</label><input type="number" step="0.5" min="0" placeholder="${prefillW!=null?prefillW:'0'}" value="${prefillW!=null?prefillW:''}" inputmode="decimal" oninput="checkPRLive('${id}',this)"></div>
+    <div class="field"><label>kg</label><input type="number" class="kg-input" step="0.5" min="0" placeholder="${prefillW!=null?prefillW:'0'}" value="${prefillW!=null?prefillW:''}" inputmode="decimal" oninput="checkPRLive('${id}',this);updateWeightBadge('${id}',this)"></div>
     <div class="field"><label>reps</label><input type="number" min="0" placeholder="${prefillR!=null?prefillR:'0'}" value="${prefillR!=null?prefillR:''}" inputmode="numeric"></div>
+    <button type="button" class="plate-btn" onclick="showPlateCalc(this)" title="Plate calculator">🏋</button>
     <button type="button" class="drop-btn${prefillDrop?' drop-btn-on':''}" onclick="toggleDrop(this)" title="Toggle drop set" data-drop="${prefillDrop?'1':'0'}">D</button>
     <button type="button" class="rm-set-btn" onclick="this.parentElement.remove()">✕</button>`;
   container.appendChild(row);
+  if(prefillW!=null)updateWeightBadge(id,row.querySelector('.kg-input'));
 }
 function toggleDrop(btn){
   const isOn=btn.dataset.drop==='1';
   btn.dataset.drop=isOn?'0':'1';
   btn.classList.toggle('drop-btn-on',!isOn);
+}
+
+// ── PLATE CALCULATOR ──
+// Weight entered is the plate weight to load — split evenly per side.
+// No barbell weight is added/subtracted.
+const PLATE_DENOMS=[25,20,15,12.5,10,7.5,5,2.5];
+function calcPlatesPerSide(totalWeight){
+  const perSide=totalWeight/2;
+  let remaining=Math.round(perSide*100)/100;
+  const plates=[];
+  PLATE_DENOMS.forEach(d=>{
+    while(remaining+1e-9>=d){
+      plates.push(d);
+      remaining=Math.round((remaining-d)*100)/100;
+    }
+  });
+  return {perSide,plates,remainder:remaining};
+}
+function showPlateCalc(btn){
+  const row=btn.closest('.set-row');
+  const kgInput=row.querySelector('.kg-input');
+  const total=parseFloat(kgInput.value)||0;
+  const content=document.getElementById('plateModalContent');
+  const eid=row.id.split('-')[1];
+  const sel=document.getElementById('msel-'+eid);
+  const isDB=sel&&isDumbbellExercise(sel.value);
+
+  if(total<=0){
+    content.innerHTML='<div class="plate-empty">Enter a weight above first, then tap the plate icon.</div>';
+    openModal('plateModal');
+    return;
+  }
+
+  if(isDB){
+    content.innerHTML=`
+      <div class="plate-total">${total}<span style="font-size:16px;color:var(--sub)">kg per hand</span></div>
+      <div class="plate-sub">${Math.round(total*2*100)/100}kg total (both hands)</div>
+    `;
+    openModal('plateModal');
+    return;
+  }
+
+  const {perSide,plates,remainder}=calcPlatesPerSide(total);
+
+  let stackHTML='';
+  if(plates.length){
+    stackHTML=plates.map(p=>{
+      const size=28+Math.min(p,20)*1.8; // bigger plates render bigger
+      return `<div class="plate-disc" style="width:${size}px;height:${size}px">${p%1===0?p:p}</div>`;
+    }).join('');
+  } else {
+    stackHTML='<div class="plate-empty">No plates needed</div>';
+  }
+
+  content.innerHTML=`
+    <div class="plate-total">${total}<span style="font-size:16px;color:var(--sub)">kg total</span></div>
+    <div class="plate-sub">${perSide}kg per side</div>
+    <div class="plate-side-label">Load per side</div>
+    <div class="plate-stack">${stackHTML}</div>
+    ${remainder>0?`<div class="plate-remainder">⚠ ${remainder}kg per side can't be made with these plates — closest is ${(perSide-remainder)}kg/side (${total-remainder*2}kg total)</div>`:''}
+  `;
+  openModal('plateModal');
 }
 function checkPRLive(id,inp){
   const sel=document.getElementById('msel-'+id);if(!sel||!sel.value)return;
@@ -1787,6 +1873,30 @@ function checkPRLive(id,inp){
     inp.classList.remove('pr-flash');
     if(prev>0)document.getElementById('prhint-'+id).textContent=`PR to beat: ${prev}kg`;
   }
+}
+
+// ── DUMBBELL PER-HAND TOTAL BADGE ──
+// Dumbbell exercises: the number entered is already the weight in EACH hand,
+// not a total to split — so just show a tiny "×2 = Xkg" note, no plate math.
+function isDumbbellExercise(name){
+  return /dumbbell|\bdb\b/i.test(name||'');
+}
+function updateWeightBadge(id,inp){
+  const sel=document.getElementById('msel-'+id);
+  const field=inp.closest('.field');
+  if(!field)return;
+  let badge=field.querySelector('.dumbbell-badge');
+  const val=parseFloat(inp.value)||0;
+  const isDB=sel&&isDumbbellExercise(sel.value);
+  if(isDB&&val>0){
+    if(!badge){badge=document.createElement('span');badge.className='dumbbell-badge';field.appendChild(badge);}
+    badge.textContent='×2='+(Math.round(val*2*100)/100)+'kg';
+  } else if(badge){
+    badge.remove();
+  }
+}
+function refreshWeightBadges(id){
+  document.querySelectorAll('#sets-'+id+' .kg-input').forEach(inp=>updateWeightBadge(id,inp));
 }
 function clearLogForm(){document.getElementById('exerciseEntries').innerHTML='';document.getElementById('logNotes').value='';exCount=0;updateCopyLastBar();addExEntry();}
 function saveLog(){
