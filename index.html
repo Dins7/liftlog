@@ -104,11 +104,11 @@ padding-top:env(safe-area-inset-top,0px);}
 .view.active>*:nth-child(4){animation-delay:0.12s}
 
 /* ── TODAY CARD ── */
-.today-card{background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px;position:relative;overflow:hidden;box-shadow:var(--shadow-md)}
+.today-card{background:var(--s1);border:1px solid var(--border);border-radius:18px;padding:20px;margin-bottom:14px;position:relative;overflow:hidden;box-shadow:var(--shadow-md)}
 .today-card::before{content:'';position:absolute;top:-40px;right:-20px;width:140px;height:140px;background:radial-gradient(circle,var(--acc-glow) 0%,transparent 70%);pointer-events:none}
-.today-day{font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:1.5px;color:var(--acc);line-height:1}
-.today-date{font-size:10.5px;color:var(--sub);margin-top:2px;font-family:var(--font-mono);letter-spacing:0.5px}
-.today-workout{margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.today-day{font-family:'Bebas Neue',sans-serif;font-size:42px;letter-spacing:2px;color:var(--acc);line-height:1}
+.today-date{font-size:11px;color:var(--sub);margin-top:2px;font-family:var(--font-mono);letter-spacing:0.5px}
+.today-workout{margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .workout-chip{font-size:11px;font-weight:700;padding:5px 13px;border-radius:20px;letter-spacing:0.4px;display:inline-block;transition:var(--transition)}
 .chip-chest{background:rgba(255,82,82,0.12);color:#ff7878;border:1px solid rgba(255,82,82,0.2)}
 .chip-legs{background:rgba(255,140,58,0.12);color:#ff8c3a;border:1px solid rgba(255,140,58,0.2)}
@@ -116,7 +116,7 @@ padding-top:env(safe-area-inset-top,0px);}
 .chip-back{background:rgba(184,125,255,0.12);color:var(--purple);border:1px solid rgba(184,125,255,0.2)}
 .chip-arms{background:rgba(90,180,255,0.12);color:var(--blue);border:1px solid rgba(90,180,255,0.2)}
 .chip-rest{background:rgba(80,80,90,0.12);color:var(--sub);border:1px solid var(--border2)}
-.today-cta{margin-top:10px;display:flex;gap:8px}
+.today-cta{margin-top:14px;display:flex;gap:8px}
 
 /* ── WEEK STRIP ── */
 .week-strip{display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;margin-bottom:16px;-webkit-overflow-scrolling:touch}
@@ -176,7 +176,7 @@ select option{background:#1a1a1e;color:var(--text)}
 input:focus,select:focus,textarea:focus{border-color:var(--acc);background:var(--s3);box-shadow:0 0 0 3px var(--acc-dim)}
 input[type=number]{font-family:var(--font-mono)}
 textarea{resize:none;line-height:1.5}
-.field{margin-bottom:13px;position:relative}
+.field{margin-bottom:13px}
 .row2{display:flex;gap:10px}
 .row2 .field{flex:1;margin-bottom:0}
 
@@ -192,7 +192,7 @@ textarea{resize:none;line-height:1.5}
 .pr-hint{font-size:11px;color:var(--green);min-height:16px;margin-bottom:5px;font-weight:500}
 
 /* ── SET ROW ── */
-.set-row{display:grid;grid-template-columns:24px 1fr 1fr 28px 36px 24px;gap:6px;align-items:end;margin-bottom:8px}
+.set-row{display:grid;grid-template-columns:24px 1fr 1fr 36px 24px;gap:6px;align-items:end;margin-bottom:8px}
 .set-label{font-family:var(--font-mono);font-size:11px;color:var(--acc);padding-bottom:11px;text-align:center;font-weight:600}
 .set-row .field{margin-bottom:0}
 .set-row input[type=number]{font-size:16px;text-align:center;padding:10px 4px;font-weight:600}
@@ -201,18 +201,6 @@ textarea{resize:none;line-height:1.5}
 .rm-set-btn:hover{color:var(--red)}
 /* drop set button — large tap target */
 .drop-btn{min-width:36px;height:36px;background:var(--s3);border:1.5px solid var(--border2);border-radius:6px;color:var(--muted);font-size:11px;font-weight:800;cursor:pointer;transition:var(--transition);letter-spacing:.5px;margin-bottom:6px;font-family:'Inter',sans-serif}
-.plate-btn{min-width:28px;height:36px;background:var(--s3);border:1.5px solid var(--border2);border-radius:6px;color:var(--sub);font-size:13px;cursor:pointer;transition:var(--transition);margin-bottom:6px;padding:0}
-.plate-btn:active{transform:scale(0.92);border-color:var(--acc);color:var(--acc)}
-.dumbbell-badge{position:absolute;top:19px;right:5px;font-size:8px;font-weight:700;color:var(--acc);font-family:var(--font-mono);letter-spacing:0.2px;pointer-events:none;line-height:1;z-index:1}
-
-/* ── PLATE CALCULATOR ── */
-.plate-side-label{font-size:11px;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
-.plate-total{font-family:'Bebas Neue',sans-serif;font-size:36px;color:var(--acc);letter-spacing:1px;line-height:1;margin-bottom:2px}
-.plate-sub{font-size:12px;color:var(--sub);margin-bottom:16px}
-.plate-stack{display:flex;align-items:flex-end;gap:4px;flex-wrap:wrap;padding:14px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:8px}
-.plate-disc{display:flex;align-items:center;justify-content:center;border-radius:6px;background:var(--acc-dim);border:1.5px solid var(--acc);color:var(--acc);font-family:var(--font-mono);font-weight:700;font-size:11px;flex-shrink:0}
-.plate-empty{font-size:13px;color:var(--sub);padding:10px 0}
-.plate-remainder{font-size:12px;color:var(--orange);margin-top:6px}
 .drop-btn:active{transform:scale(0.92)}
 .drop-btn-on{background:rgba(255,79,79,0.18);border-color:var(--red);color:var(--red) !important}
 .pr-flash{border-color:var(--acc)!important;box-shadow:0 0 0 3px var(--acc-dim)!important}
@@ -422,17 +410,6 @@ body.timer-active .view{padding-bottom:158px;}
 .gym-timer-btn.end{background:var(--red);color:#fff}
 .gym-timer-btn.end:active{background:#cc2222}
 
-/* ── COMPACT GYM STRIP (today card) ── */
-.gym-strip{display:flex;align-items:center;gap:7px;padding:7px 10px;background:var(--s2);border:1px solid var(--border);border-radius:20px;margin-top:8px}
-.gym-strip-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);flex-shrink:0}
-.gym-strip-dot.live{background:var(--green);box-shadow:0 0 6px var(--green);animation:pulseDot 1.6s ease-in-out infinite}
-@keyframes pulseDot{0%,100%{opacity:1}50%{opacity:0.4}}
-.gym-strip-text{font-size:11px;color:var(--sub);font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.gym-strip-time{font-family:var(--font-mono);font-weight:700;color:var(--acc);font-size:12.5px;flex-shrink:0}
-.gym-strip-btn{flex-shrink:0;background:var(--acc);color:#000;border:none;border-radius:20px;padding:4px 11px;font-size:10.5px;font-weight:800;cursor:pointer;font-family:'Inter',sans-serif;transition:var(--transition);white-space:nowrap}
-.gym-strip-btn:active{transform:scale(0.94)}
-.gym-strip-btn.end{background:var(--red);color:#fff}
-
 /* ── RPE SLIDER ── */
 .rpe-section{margin-top:14px;padding:14px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm)}
 .rpe-label{font-size:10px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:0.7px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
@@ -629,11 +606,6 @@ body.timer-active .view{padding-bottom:158px;}
     </div>
     <div class="chart-wrap"><div id="lineChartWrap"></div><div class="chart-tooltip" id="chartTooltip"></div></div>
   </div>
-  <div class="prog-card">
-    <div class="prog-card-title">Gym History</div>
-    <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px">Tap × or hold 3s to delete</div>
-    <div id="gymHistoryContainer"></div>
-  </div>
 </div>
 
 <!-- BODY VIEW -->
@@ -737,15 +709,6 @@ body.timer-active .view{padding-bottom:158px;}
 </div>
 
 <!-- MODALS -->
-<div class="modal-overlay" id="plateModal" onclick="closeBgModal('plateModal',event)">
-  <div class="modal-box">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Plate Calculator</div>
-    <div id="plateModalContent"></div>
-    <button class="btn-ghost" onclick="closeModal('plateModal')" style="width:100%;margin-top:8px">Close</button>
-  </div>
-</div>
-
 <div class="modal-overlay" id="overrideModal" onclick="closeBgModal('overrideModal',event)">
   <div class="modal-box">
     <div class="modal-handle"></div>
@@ -1749,7 +1712,6 @@ function onMachineChange(id){
   const muscle=opt.dataset.muscle||'';
   document.getElementById('mhint-'+id).textContent=muscle?'→ '+muscle:'';
   updatePRHint(id,sel.value);
-  refreshWeightBadges(id);
 }
 function confirmAddMachine(){
   const name=document.getElementById('newMachineName').value.trim();
@@ -1786,89 +1748,16 @@ function addSetRow(id,prefillW,prefillR,prefillDrop){
   // Use a visible tap button for drop set instead of tiny checkbox
   row.innerHTML=`
     <span class="set-label">S${sn}</span>
-    <div class="field"><label>kg</label><input type="number" class="kg-input" step="0.5" min="0" placeholder="${prefillW!=null?prefillW:'0'}" value="${prefillW!=null?prefillW:''}" inputmode="decimal" oninput="checkPRLive('${id}',this);updateWeightBadge('${id}',this)"></div>
+    <div class="field"><label>kg</label><input type="number" step="0.5" min="0" placeholder="${prefillW!=null?prefillW:'0'}" value="${prefillW!=null?prefillW:''}" inputmode="decimal" oninput="checkPRLive('${id}',this)"></div>
     <div class="field"><label>reps</label><input type="number" min="0" placeholder="${prefillR!=null?prefillR:'0'}" value="${prefillR!=null?prefillR:''}" inputmode="numeric"></div>
-    <button type="button" class="plate-btn" onclick="showPlateCalc(this)" title="Plate calculator">🏋</button>
     <button type="button" class="drop-btn${prefillDrop?' drop-btn-on':''}" onclick="toggleDrop(this)" title="Toggle drop set" data-drop="${prefillDrop?'1':'0'}">D</button>
     <button type="button" class="rm-set-btn" onclick="this.parentElement.remove()">✕</button>`;
   container.appendChild(row);
-  if(prefillW!=null)updateWeightBadge(id,row.querySelector('.kg-input'));
 }
 function toggleDrop(btn){
   const isOn=btn.dataset.drop==='1';
   btn.dataset.drop=isOn?'0':'1';
   btn.classList.toggle('drop-btn-on',!isOn);
-}
-
-// ── PLATE CALCULATOR ──
-// The weight you type in the log form IS the per-side weight (what you load
-// on ONE side of the bar/machine) — total lifted = that × 2. No barbell
-// weight is added/subtracted separately.
-const PLATE_DENOMS=[25,20,15,12.5,10,7.5,5,2.5];
-function calcPlatesPerSide(perSideInput){
-  let remaining=Math.round(perSideInput*100)/100;
-  const plates=[];
-  PLATE_DENOMS.forEach(d=>{
-    while(remaining+1e-9>=d){
-      plates.push(d);
-      remaining=Math.round((remaining-d)*100)/100;
-    }
-  });
-  return {perSide:perSideInput,total:Math.round(perSideInput*2*100)/100,plates,remainder:remaining};
-}
-function showPlateCalc(btn){
-  const row=btn.closest('.set-row');
-  const kgInput=row.querySelector('.kg-input');
-  const entered=parseFloat(kgInput.value)||0;
-  const content=document.getElementById('plateModalContent');
-  const eid=row.id.split('-')[1];
-  const sel=document.getElementById('msel-'+eid);
-  const mode=sel?getWeightMode(sel.value):'plate';
-
-  if(entered<=0){
-    content.innerHTML='<div class="plate-empty">Enter a weight above first, then tap the plate icon.</div>';
-    openModal('plateModal');
-    return;
-  }
-
-  if(mode==='dumbbell'){
-    content.innerHTML=`
-      <div class="plate-total">${entered}<span style="font-size:16px;color:var(--sub)">kg per hand</span></div>
-      <div class="plate-sub">${Math.round(entered*2*100)/100}kg total (both hands)</div>
-    `;
-    openModal('plateModal');
-    return;
-  }
-
-  if(mode==='single'){
-    content.innerHTML=`
-      <div class="plate-total">${entered}<span style="font-size:16px;color:var(--sub)">kg total</span></div>
-      <div class="plate-sub">Single-load machine — this is the full weight, nothing to double</div>
-    `;
-    openModal('plateModal');
-    return;
-  }
-
-  const {perSide,total,plates,remainder}=calcPlatesPerSide(entered);
-
-  let stackHTML='';
-  if(plates.length){
-    stackHTML=plates.map(p=>{
-      const size=28+Math.min(p,20)*1.8; // bigger plates render bigger
-      return `<div class="plate-disc" style="width:${size}px;height:${size}px">${p%1===0?p:p}</div>`;
-    }).join('');
-  } else {
-    stackHTML='<div class="plate-empty">No plates needed</div>';
-  }
-
-  content.innerHTML=`
-    <div class="plate-total">${total}<span style="font-size:16px;color:var(--sub)">kg total</span></div>
-    <div class="plate-sub">${perSide}kg per side (as entered)</div>
-    <div class="plate-side-label">Load per side</div>
-    <div class="plate-stack">${stackHTML}</div>
-    ${remainder>0?`<div class="plate-remainder">⚠ ${remainder}kg per side can't be made with these plates — closest is ${(perSide-remainder)}kg/side (${total-remainder*2}kg total)</div>`:''}
-  `;
-  openModal('plateModal');
 }
 function checkPRLive(id,inp){
   const sel=document.getElementById('msel-'+id);if(!sel||!sel.value)return;
@@ -1882,50 +1771,6 @@ function checkPRLive(id,inp){
     inp.classList.remove('pr-flash');
     if(prev>0)document.getElementById('prhint-'+id).textContent=`PR to beat: ${prev}kg`;
   }
-}
-
-// ── WEIGHT ENTRY MODES ──
-// 'dumbbell': entered = weight per hand, total = ×2
-// 'single'  : entered = the actual total load (selectorized stack / single rod
-//             machines like Preacher Curl) — never doubled, no plate math
-// 'plate'   : entered = weight per side of a barbell/plate-loaded machine,
-//             total = ×2 (default — leg press, squat, bench, Smith machine…)
-function isDumbbellExercise(name){
-  return /dumbbell|\bdb\b/i.test(name||'');
-}
-const SINGLE_LOAD_EXERCISES=new Set([
-  'Incline Chest Press Machine','Pec Fly Machine','Preacher Curl Machine',
-  'Lat Pulldown Machine','Seated Mid Back Row Machine','Chest-Supported Upper Back Row',
-  'Straight Arm Lat Pullover Machine','Cable Pushdown','Overhead Cable Triceps Extension',
-  'Machine Lateral Raise','Cable Lateral Raise','Cable Front Raise','Reverse Pec Deck (Rear Fly)',
-  'Seated Leg Curl','Seated Leg Extension','Seated Calf Raises','Pull-ups'
-]);
-function isSingleLoadExercise(name){
-  if(!name)return false;
-  if(SINGLE_LOAD_EXERCISES.has(name))return true;
-  return /\bcable\b|pec deck|preacher/i.test(name);
-}
-function getWeightMode(name){
-  if(isDumbbellExercise(name))return'dumbbell';
-  if(isSingleLoadExercise(name))return'single';
-  return'plate';
-}
-function updateWeightBadge(id,inp){
-  const sel=document.getElementById('msel-'+id);
-  const field=inp.closest('.field');
-  if(!field)return;
-  let badge=field.querySelector('.dumbbell-badge');
-  const val=parseFloat(inp.value)||0;
-  const mode=sel?getWeightMode(sel.value):'plate';
-  if(mode!=='single'&&val>0){
-    if(!badge){badge=document.createElement('span');badge.className='dumbbell-badge';field.appendChild(badge);}
-    badge.textContent='×2='+(Math.round(val*2*100)/100)+'kg';
-  } else if(badge){
-    badge.remove();
-  }
-}
-function refreshWeightBadges(id){
-  document.querySelectorAll('#sets-'+id+' .kg-input').forEach(inp=>updateWeightBadge(id,inp));
 }
 function clearLogForm(){document.getElementById('exerciseEntries').innerHTML='';document.getElementById('logNotes').value='';exCount=0;updateCopyLastBar();addExEntry();}
 function saveLog(){
@@ -2221,7 +2066,6 @@ function getAllExHistory(){
   return map;
 }
 function renderProgress(){
-  renderGymHistory();
   const total=getSessions().length;
   const allEx=getAllExHistory();
   const totalSets=getSessions().reduce((a,s)=>a+s.exercises.reduce((b,e)=>b+e.sets.length,0),0);
@@ -3247,102 +3091,107 @@ function gymTimerRow(){
 function buildGymTimerRow(){
   const container=document.getElementById('gymTimerContainer');
   if(!container)return;
-  container.innerHTML='';
 
-  // Compact single-line strip — just today's check-in/out, no history here.
-  const strip=document.createElement('div');
-  strip.className='gym-strip';
-
-  const dot=document.createElement('span');
-  dot.className='gym-strip-dot'+(_gymSessionStart?' live':'');
-  strip.appendChild(dot);
-
-  if(_gymSessionStart){
-    const timeEl=document.createElement('span');
-    timeEl.className='gym-strip-time';
-    timeEl.id='gymTimerDisplay';
-    timeEl.textContent=_elapsedStr(_gymSessionStart);
-    strip.appendChild(timeEl);
-
-    const label=document.createElement('span');
-    label.className='gym-strip-text';
-    label.textContent='in the gym';
-    strip.appendChild(label);
-
-    const outBtn=document.createElement('button');
-    outBtn.className='gym-strip-btn end';
-    outBtn.textContent='Check Out';
-    outBtn.addEventListener('click',endGymSession);
-    strip.appendChild(outBtn);
-  } else {
-    const today=todayStr();
-    const todaysEntry=(getPrefs().gymLog||[]).find(e=>e.date===today);
-
-    const label=document.createElement('span');
-    label.className='gym-strip-text';
-    label.textContent=todaysEntry?('Today: '+todaysEntry.durStr+' at the gym'):'Gym session';
-    strip.appendChild(label);
-
-    const inBtn=document.createElement('button');
-    inBtn.className='gym-strip-btn';
-    inBtn.textContent='Check In';
-    inBtn.addEventListener('click',startGymSession);
-    strip.appendChild(inBtn);
-  }
-
-  container.appendChild(strip);
-}
-
-// Full gym history — rendered in the Progress tab, not on the home/today card.
-function renderGymHistory(){
-  const container=document.getElementById('gymHistoryContainer');
-  if(!container)return;
-  container.innerHTML='';
-
-  const allLog=(getPrefs().gymLog||[]).slice(0,30);
+  const allLog=(getPrefs().gymLog||[]).slice(0,7);
   const today=todayStr();
 
-  if(!allLog.length){
-    container.innerHTML='<div style="font-size:13px;color:var(--sub)">No gym sessions logged yet.</div>';
-    return;
+  // Outer wrapper
+  const wrap=document.createElement('div');
+  wrap.className='gym-timer-row';
+  wrap.style.flexDirection='column';
+  wrap.style.alignItems='stretch';
+
+  // Top row
+  const topRow=document.createElement('div');
+  topRow.style.cssText='display:flex;align-items:center;gap:10px';
+
+  const leftDiv=document.createElement('div');
+  leftDiv.style.flex='1';
+
+  if(_gymSessionStart){
+    const label=document.createElement('div');
+    label.className='gym-timer-label';
+    label.textContent='🟢 In Session · checked in at '+_fmtTime(new Date(_gymSessionStart));
+    const timeEl=document.createElement('div');
+    timeEl.className='gym-timer-time';
+    timeEl.id='gymTimerDisplay';
+    timeEl.textContent=_elapsedStr(_gymSessionStart);
+    leftDiv.appendChild(label);
+    leftDiv.appendChild(timeEl);
+
+    const outBtn=document.createElement('button');
+    outBtn.className='gym-timer-btn end';
+    outBtn.textContent='Check Out';
+    outBtn.addEventListener('click',endGymSession);
+
+    topRow.appendChild(leftDiv);
+    topRow.appendChild(outBtn);
+  } else {
+    const label=document.createElement('div');
+    label.className='gym-timer-label';
+    label.textContent='Gym Session Tracker';
+    const sub=document.createElement('div');
+    sub.style.cssText='font-size:12px;color:var(--sub);margin-top:2px';
+    sub.textContent='Tap Check In when you arrive at the gym';
+    leftDiv.appendChild(label);
+    leftDiv.appendChild(sub);
+
+    const inBtn=document.createElement('button');
+    inBtn.className='gym-timer-btn';
+    inBtn.textContent='Check In';
+    inBtn.addEventListener('click',startGymSession);
+
+    topRow.appendChild(leftDiv);
+    topRow.appendChild(inBtn);
+  }
+  wrap.appendChild(topRow);
+
+  // History
+  if(allLog.length){
+    const hist=document.createElement('div');
+    hist.style.cssText='margin-top:10px;border-top:1px solid var(--border);padding-top:10px';
+
+    const histLabel=document.createElement('div');
+    histLabel.style.cssText='font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px';
+    histLabel.textContent='Gym History · hold 3s to delete';
+    hist.appendChild(histLabel);
+
+    allLog.forEach(e=>{
+      const entryId=e.id||('gym'+e.date);
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04)';
+
+      const dateEl=document.createElement('span');
+      const isToday=e.date===today;
+      dateEl.style.cssText='font-size:12px;font-weight:'+(isToday?'700':'400')+';color:'+(isToday?'var(--acc)':'var(--text2)');
+      dateEl.textContent=isToday?'Today':fmtDate(e.date);
+
+      const timeEl=document.createElement('span');
+      timeEl.style.cssText='font-size:11px;color:var(--sub);font-family:var(--font-mono)';
+      timeEl.textContent=e.checkIn+' – '+e.checkOut;
+
+      const durEl=document.createElement('span');
+      durEl.style.cssText='font-size:12px;font-weight:700;color:var(--acc);font-family:var(--font-mono)';
+      durEl.textContent=e.durStr;
+
+      // Hold to delete
+      let holdTimer=null;
+      row.addEventListener('touchstart',()=>{
+        holdTimer=setTimeout(()=>deleteGymLogEntry(entryId),3000);
+      },{passive:true});
+      row.addEventListener('touchend',()=>{if(holdTimer){clearTimeout(holdTimer);holdTimer=null;}});
+      row.addEventListener('touchcancel',()=>{if(holdTimer){clearTimeout(holdTimer);holdTimer=null;}});
+      row.addEventListener('contextmenu',e2=>{e2.preventDefault();deleteGymLogEntry(entryId);});
+
+      row.appendChild(dateEl);
+      row.appendChild(timeEl);
+      row.appendChild(durEl);
+      hist.appendChild(row);
+    });
+    wrap.appendChild(hist);
   }
 
-  const hist=document.createElement('div');
-  allLog.forEach(e=>{
-    const entryId=e.id||('gym'+e.date);
-    const row=document.createElement('div');
-    row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);gap:8px';
-
-    const dateEl=document.createElement('span');
-    const isToday=e.date===today;
-    dateEl.style.cssText='font-size:12px;font-weight:'+(isToday?'700':'400')+';color:'+(isToday?'var(--acc)':'var(--text2)');
-    dateEl.textContent=isToday?'Today':fmtDate(e.date);
-
-    const timeEl=document.createElement('span');
-    timeEl.style.cssText='font-size:11px;color:var(--sub);font-family:var(--font-mono)';
-    timeEl.textContent=e.checkIn+' – '+e.checkOut;
-
-    const durEl=document.createElement('span');
-    durEl.style.cssText='font-size:12px;font-weight:700;color:var(--acc);font-family:var(--font-mono)';
-    durEl.textContent=e.durStr;
-
-    const delBtn=document.createElement('button');
-    delBtn.type='button';
-    delBtn.textContent='×';
-    delBtn.setAttribute('aria-label','Delete entry');
-    delBtn.style.cssText='flex-shrink:0;width:22px;height:22px;line-height:20px;text-align:center;border-radius:50%;border:1px solid var(--border2);background:var(--s2);color:var(--sub);font-size:15px;cursor:pointer;transition:var(--transition)';
-    delBtn.addEventListener('mouseenter',()=>{delBtn.style.color='var(--red)';delBtn.style.borderColor='var(--red)';delBtn.style.background='var(--red-dim)';});
-    delBtn.addEventListener('mouseleave',()=>{delBtn.style.color='var(--sub)';delBtn.style.borderColor='var(--border2)';delBtn.style.background='var(--s2)';});
-    delBtn.addEventListener('click',ev=>{ev.stopPropagation();deleteGymLogEntry(entryId);renderGymHistory();});
-    delBtn.addEventListener('contextmenu',e2=>e2.preventDefault());
-
-    row.appendChild(dateEl);
-    row.appendChild(timeEl);
-    row.appendChild(durEl);
-    row.appendChild(delBtn);
-    hist.appendChild(row);
-  });
-  container.appendChild(hist);
+  container.appendChild(wrap);
 }
 
 // Restore session timer if page was refreshed mid-session
