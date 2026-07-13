@@ -1413,6 +1413,8 @@ function renderToday(){
     if(_gymSessionStart&&!_gymTimerInterval){
       _gymTimerInterval=setInterval(tickGymTimer,1000);
     }
+    // Build gym timer row via DOM (avoids inline string escaping issues)
+    requestAnimationFrame(buildGymTimerRow);
   }catch(err){
     console.error('renderToday error:',err);
     // Fallback — show minimal today card so app isn't blank
@@ -3003,14 +3005,464 @@ function showGymCheckoutUndo(entry){
   const t=document.createElement('div');
   t.id='gymUndoToast';
   t.style.cssText='position:fixed;bottom:150px;left:50%;transform:translateX(-50%);background:var(--s1);color:var(--text);border:1px solid var(--border2);font-size:13px;padding:11px 8px 11px 16px;border-radius:14px;z-index:600;display:flex;align-items:center;gap:10px;box-shadow:0 4px 24px rgba(0,0,0,0.5);white-space:nowrap;animation:fadeUp 0.3s both;';
-  t.innerHTML='<span>💪 <b>'+entry.durStr+'</b> · '+entry.checkIn+' – '+entry.checkOut+'</span>'+
-    '<button id="gymUndoBtn" style="background:var(--acc);color:#000;border:none;border-radius:8px;padding:6px 14px;font-weight:800;font-size:12px;cursor:pointer;font-family:Inter,sans-serif">UNDO</button>';
-  // Attach onclick via JS to avoid inline string quote issues
+  // Build undo toast via DOM
+  const msgSpan=document.createElement('span');
+  msgSpan.innerHTML='💪 <b>'+entry.durStr+'</b> · '+entry.checkIn+' – '+entry.checkOut;
+  const undoBtn=document.createElement('button');
+  undoBtn.textContent='UNDO';
+  undoBtn.style.cssText='background:var(--acc);color:#000;border:none;border-radius:8px;padding:6px 14px;font-weight:800;font-size:12px;cursor:pointer;font-family:Inter,sans-serif';
   const undoId=entry.id;
-  requestAnimationFrame(()=>{
-    const btn=document.getElementById('gymUndoBtn');
-    if(btn) btn.addEventListener('click',()=>undoGymCheckout(undoId));
-  });
+  undoBtn.addEventListener('click',()=>undoGymCheckout(undoId));
+  t.appendChild(msgSpan);
+  t.appendChild(undoBtn);
+  // countdown bar
+  const bar=document.createElement('div');
+  bar.style.cssText='position:absolute;bottom:0;left:0;height:2px;background:var(--acc);border-radius:0 0 14px 14px;width:100%;transition:width 6s linear;';
+  t.appendChild(bar);
+  document.body.appendChild(t);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{bar.style.width='0%';}));
+  _gymUndoTimer=setTimeout(()=>{t.remove();_gymUndoEntry=null;},6300);
+}
+
+function undoGymCheckout(id){
+  clearTimeout(_gymUndoTimer);
+  document.getElementById('gymUndoToast')?.remove();
+  // Remove entry from log
+  const prefs={...getPrefs()};
+  prefs.gymLog=(prefs.gymLog||[]).filter(e=>e.id!==id);
+  // Restore check-in state using the entry's check-in time
+  if(_gymUndoEntry&&_gymUndoEntry.id===id){
+    const [hh,mm]=_gymUndoEntry.checkIn.split(':').map(Number);
+    const restored=new Date();
+    restored.setHours(hh,mm,0,0);
+    _gymSessionStart=restored.getTime();
+    localStorage.setItem('ll_gym_session_start',String(_gymSessionStart));
+    clearInterval(_gymTimerInterval);
+    _gymTimerInterval=setInterval(tickGymTimer,1000);
+  }
+  window._prefs=prefs;
+  window._savePrefs(prefs);
+  _gymUndoEntry=null;
+  toast('Check-out undone — still in session','success');
+  renderToday();
+}
+
+// Hold 3 seconds to delete a gym log entry
+let _gymHoldTimer=null;
+function gymLogHoldStart(id){
+  _gymHoldTimer=setTimeout(()=>{deleteGymLogEntry(id);},3000);
+}
+function gymLogHoldEnd(){
+  if(_gymHoldTimer){clearTimeout(_gymHoldTimer);_gymHoldTimer=null;}
+}
+function deleteGymLogEntry(id){
+  _gymHoldTimer=null;
+  const prefs={...getPrefs()};
+  const entry=(prefs.gymLog||[]).find(e=>e.id===id);
+  if(!entry)return;
+  if(!confirm('Delete: '+fmtDate(entry.date)+' '+entry.checkIn+' to '+entry.checkOut+' ('+entry.durStr+')'))return;
+  prefs.gymLog=prefs.gymLog.filter(e=>e.id!==id);
+  window._prefs=prefs;
+  window._savePrefs(prefs);
+  toast('Entry deleted');
+  renderToday();
+}
+
+function showSessionSummary(seconds,checkIn,checkOut){
+  const t=document.getElementById('toast');
+  t.innerHTML='💪 <b>'+_fmtDur(seconds)+'</b> · '+checkIn+' → '+checkOut;
+  t.className='toast success show';
+  setTimeout(()=>{t.classList.remove('show');t.innerHTML='';},5000);
+}
+
+function tickGymTimer(){
+  const el=document.getElementById('gymTimerDisplay');
+  if(!el||!_gymSessionStart)return;
+  const sec=Math.floor((Date.now()-_gymSessionStart)/1000);
+  const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
+  el.textContent=h>0?h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'):String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+
+function gymTimerRow(){
+  // Returns a placeholder div — actual content built by buildGymTimerRow() after render
+  return '<div id="gymTimerContainer"></div>';
+}
+
+function buildGymTimerRow(){
+  const container=document.getElementById('gymTimerContainer');
+  if(!container)return;
+
+  const allLog=(getPrefs().gymLog||[]).slice(0,7);
+  const today=todayStr();
+
+  // Outer wrapper
+  const wrap=document.createElement('div');
+  wrap.className='gym-timer-row';
+  wrap.style.flexDirection='column';
+  wrap.style.alignItems='stretch';
+
+  // Top row
+  const topRow=document.createElement('div');
+  topRow.style.cssText='display:flex;align-items:center;gap:10px';
+
+  const leftDiv=document.createElement('div');
+  leftDiv.style.flex='1';
+
+  if(_gymSessionStart){
+    const label=document.createElement('div');
+    label.className='gym-timer-label';
+    label.textContent='🟢 In Session · checked in at '+_fmtTime(new Date(_gymSessionStart));
+    const timeEl=document.createElement('div');
+    timeEl.className='gym-timer-time';
+    timeEl.id='gymTimerDisplay';
+    timeEl.textContent=_elapsedStr(_gymSessionStart);
+    leftDiv.appendChild(label);
+    leftDiv.appendChild(timeEl);
+
+    const outBtn=document.createElement('button');
+    outBtn.className='gym-timer-btn end';
+    outBtn.textContent='Check Out';
+    outBtn.addEventListener('click',endGymSession);
+
+    topRow.appendChild(leftDiv);
+    topRow.appendChild(outBtn);
+  } else {
+    const label=document.createElement('div');
+    label.className='gym-timer-label';
+    label.textContent='Gym Session Tracker';
+    const sub=document.createElement('div');
+    sub.style.cssText='font-size:12px;color:var(--sub);margin-top:2px';
+    sub.textContent='Tap Check In when you arrive at the gym';
+    leftDiv.appendChild(label);
+    leftDiv.appendChild(sub);
+
+    const inBtn=document.createElement('button');
+    inBtn.className='gym-timer-btn';
+    inBtn.textContent='Check In';
+    inBtn.addEventListener('click',startGymSession);
+
+    topRow.appendChild(leftDiv);
+    topRow.appendChild(inBtn);
+  }
+  wrap.appendChild(topRow);
+
+  // History
+  if(allLog.length){
+    const hist=document.createElement('div');
+    hist.style.cssText='margin-top:10px;border-top:1px solid var(--border);padding-top:10px';
+
+    const histLabel=document.createElement('div');
+    histLabel.style.cssText='font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px';
+    histLabel.textContent='Gym History · hold 3s to delete';
+    hist.appendChild(histLabel);
+
+    allLog.forEach(e=>{
+      const entryId=e.id||('gym'+e.date);
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04)';
+
+      const dateEl=document.createElement('span');
+      const isToday=e.date===today;
+      dateEl.style.cssText='font-size:12px;font-weight:'+(isToday?'700':'400')+';color:'+(isToday?'var(--acc)':'var(--text2)');
+      dateEl.textContent=isToday?'Today':fmtDate(e.date);
+
+      const timeEl=document.createElement('span');
+      timeEl.style.cssText='font-size:11px;color:var(--sub);font-family:var(--font-mono)';
+      timeEl.textContent=e.checkIn+' – '+e.checkOut;
+
+      const durEl=document.createElement('span');
+      durEl.style.cssText='font-size:12px;font-weight:700;color:var(--acc);font-family:var(--font-mono)';
+      durEl.textContent=e.durStr;
+
+      // Hold to delete
+      let holdTimer=null;
+      row.addEventListener('touchstart',()=>{
+        holdTimer=setTimeout(()=>deleteGymLogEntry(entryId),3000);
+      },{passive:true});
+      row.addEventListener('touchend',()=>{if(holdTimer){clearTimeout(holdTimer);holdTimer=null;}});
+      row.addEventListener('touchcancel',()=>{if(holdTimer){clearTimeout(holdTimer);holdTimer=null;}});
+      row.addEventListener('contextmenu',e2=>{e2.preventDefault();deleteGymLogEntry(entryId);});
+
+      row.appendChild(dateEl);
+      row.appendChild(timeEl);
+      row.appendChild(durEl);
+      hist.appendChild(row);
+    });
+    wrap.appendChild(hist);
+  }
+
+  container.appendChild(wrap);
+}
+
+function adjustMuscleRecovery(groupId,delta){
+  const prefs={...getPrefs()};
+  prefs.muscleRecoveryOverrides=prefs.muscleRecoveryOverrides||{};
+  const current=prefs.muscleRecoveryOverrides[groupId]||0;
+  const newVal=Math.max(0,Math.min(5,current+delta)); // 0 to +5 extra days
+  if(newVal===0)delete prefs.muscleRecoveryOverrides[groupId];
+  else prefs.muscleRecoveryOverrides[groupId]=newVal;
+  window._prefs=prefs;
+  window._savePrefs(prefs);
+  // Re-open detail to refresh
+  showMuscleDetail(groupId);
+  // Re-render heatmap
+  renderHeatmap();
+}
+
+// ═══════════════════════════════════════
+// WEEKLY VOLUME SUMMARY
+// ═══════════════════════════════════════
+let weekOffset=0;
+const HYPERTROPHY_TARGETS={
+  'Chest':10,'Biceps':8,'Lats':10,'Mid Back':8,'Upper Back':8,
+  'Triceps':8,'Side Delts':12,'Front Delts':6,'Rear Delts':8,
+  'Quads':10,'Hamstrings':8,'Calves':6
+};
+const MUSCLE_GROUP_MAP={
+  'Upper Chest':'Chest','Mid Chest':'Chest','Overall Chest':'Chest',
+  'Biceps Long Head':'Biceps','Biceps Short Head':'Biceps','Brachialis':'Biceps',
+  'Lats':'Lats','Lats / Upper Back':'Lats',
+  'Rhomboids / Mid Back':'Mid Back','Upper Back':'Upper Back',
+  'Triceps Lateral & Medial Head':'Triceps','Triceps Long Head':'Triceps',
+  'Side Delts':'Side Delts','Front Delts':'Front Delts','Rear Delts':'Rear Delts',
+  'Quads':'Quads','Quads / Glutes':'Quads',
+  'Hamstrings':'Hamstrings','Calves':'Calves',
+};
+
+function getWeekRange(offset){
+  const now=new Date();
+  const day=now.getDay();
+  const monday=new Date(now);
+  monday.setDate(now.getDate()-((day+6)%7)+(offset*7));
+  const sunday=new Date(monday);sunday.setDate(monday.getDate()+6);
+  return{
+    start:monday.toISOString().split('T')[0],
+    end:sunday.toISOString().split('T')[0],
+    label:offset===0?'This week':offset===-1?'Last week':`${fmtDate(monday.toISOString().split('T')[0])} – ${fmtDate(sunday.toISOString().split('T')[0])}`
+  };
+}
+
+function changeWeek(dir){
+  weekOffset+=dir;
+  if(weekOffset>0)weekOffset=0;
+  renderWeeklyVolume();
+}
+
+function renderWeeklyVolume(){
+  const range=getWeekRange(weekOffset);
+  const weekLabel=document.getElementById('weekLabel');
+  if(weekLabel)weekLabel.textContent=range.label;
+
+  const sessions=getSessions().filter(s=>s.date>=range.start&&s.date<=range.end);
+  const vol={};
+  sessions.forEach(s=>s.exercises.forEach(ex=>{
+    const group=MUSCLE_GROUP_MAP[ex.m||''];
+    if(group){vol[group]=(vol[group]||0)+ex.sets.length;}
+  }));
+
+  const el=document.getElementById('weeklyVolContent');
+  if(!el)return;
+
+  if(!Object.keys(vol).length){
+    el.innerHTML=`<div style="color:var(--sub);font-size:13px;padding:8px 0;text-align:center">No sessions logged this week</div>`;
+    return;
+  }
+
+  const maxTarget=Math.max(...Object.values(HYPERTROPHY_TARGETS));
+  el.innerHTML=Object.entries(HYPERTROPHY_TARGETS).map(([muscle,target])=>{
+    const sets=vol[muscle]||0;
+    const pct=Math.min(100,(sets/target)*100);
+    const targetPct=(target/maxTarget)*100;
+    const color=sets===0?'var(--muted)':sets>=target?'var(--green)':sets>=(target*0.7)?'var(--orange)':'var(--red)';
+    const status=sets===0?'':'';
+    return`<div class="muscle-vol-row">
+      <div class="muscle-vol-header">
+        <span class="muscle-vol-name">${muscle}</span>
+        <span class="muscle-vol-count" style="color:${color}">${sets}/${target} sets</span>
+      </div>
+      <div class="muscle-vol-bar-bg vol-target-line">
+        <div class="muscle-vol-fill" style="width:${pct.toFixed(1)}%;background:${color}"></div>
+        <div class="vol-target-marker" style="left:${targetPct.toFixed(1)}%"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════
+// PROGRESSIVE OVERLOAD NUDGE
+// ═══════════════════════════════════════
+function getOverloadNudge(machineName, workout){
+  const relevant=getSessions()
+    .filter(s=>s.workout===workout)
+    .sort((a,b)=>b.date.localeCompare(a.date))
+    .slice(0,3);
+  
+  if(relevant.length < 2) return null;
+  
+  // Get max weights for this machine in last 2 sessions
+  const weights=relevant.map(s=>{
+    const ex=s.exercises.find(e=>e.n===machineName);
+    if(!ex)return null;
+    return Math.max(...ex.sets.map(st=>st.w));
+  }).filter(w=>w!==null&&w!==undefined);
+  
+  if(weights.length < 2) return null;
+  
+  // If top weight hasn't changed in last 2 sessions
+  if(weights[0]===weights[1]){
+    return `Same weight (${weights[0]}kg) for ${weights.length >= 3 && weights[1]===weights[2]?'3':'2'} sessions — consider progressing`;
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════
+// EXTEND NAV FOR BODY TAB
+// ═══════════════════════════════════════
+const _origNav=nav;
+// Override nav to handle body tab
+function nav(v){
+  document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.bot-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('view-'+v)?.classList.add('active');
+  document.getElementById('tab-'+v)?.classList.add('active');
+  currentView=v;
+  if(v==='today'){renderToday();renderWeekStrip();renderRecent()}
+  if(v==='log'){initLogForm()}
+  if(v==='progress'){renderProgress()}
+  if(v==='prs'){renderPRs();populateExportSelect()}
+  if(v==='body'){renderBwLog();renderHeatmap();renderWeeklyVolume()}
+}
+
+// saveLog already includes RPE — no override needed
+
+// ═══════════════════════════════════════
+// PATCH updatePRHint TO SHOW OVERLOAD NUDGE
+// ═══════════════════════════════════════
+const _origUpdatePRHint=updatePRHint;
+function updatePRHint(id,machineName){
+  const el=document.getElementById('prhint-'+id);if(!el||!machineName)return;
+  const date=document.getElementById('logDate').value;
+  const workout=document.getElementById('logWorkout').value;
+  const prev=getPRBefore(machineName,date);
+  
+  // Check overload nudge first
+  const nudge=getOverloadNudge(machineName,workout);
+  if(nudge){
+    el.innerHTML=`<div class="overload-nudge">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      ${nudge}
+    </div>`;
+    return;
+  }
+  if(prev>0)el.textContent=`PR to beat: ${prev}kg`;
+  else if(prev===0)el.textContent='PR to beat: BW';
+  else el.textContent='First time logging this exercise';
+}
+
+// ═══════════════════════════════════════
+// EXTEND refreshAllViews FOR BODY
+// ═══════════════════════════════════════
+const _origRefreshAllViews=refreshAllViews;
+function refreshAllViews(){
+  _origRefreshAllViews();
+  if(currentView==='body'){renderBwLog();renderHeatmap();renderWeeklyVolume();}
+}
+
+
+// ═══════════════════════════════════════
+// GYM SESSION TIMER
+// ═══════════════════════════════════════
+let _gymSessionStart=null;
+let _gymTimerInterval=null;
+
+// ── GYM SESSION TIMER ──
+let _gymCheckoutConfirmTimer=null;
+let _gymDeleteHoldTimer=null;
+let _gymUndoEntry=null;
+let _gymUndoTimer=null;
+
+function _fmtTime(d){
+  return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+}
+function _fmtDur(sec){
+  const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
+  return h>0?h+'h '+m+'m':m>0?m+'m '+s+'s':s+'s';
+}
+function _elapsedStr(startMs){
+  const sec=Math.floor((Date.now()-startMs)/1000);
+  const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
+  return h>0?h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'):String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+
+function startGymSession(){
+  if(_gymSessionStart){toast('Already checked in!');return;}
+  _gymSessionStart=Date.now();
+  localStorage.setItem('ll_gym_session_start',String(_gymSessionStart));
+  clearInterval(_gymTimerInterval);
+  _gymTimerInterval=setInterval(tickGymTimer,1000);
+  tickGymTimer();
+  toast('✅ Checked in at '+_fmtTime(new Date(_gymSessionStart)),'success');
+  renderToday();
+}
+
+function endGymSession(){
+  if(!_gymSessionStart){toast('Not checked in yet');return;}
+  // Require confirmation — show confirm button for 4 seconds
+  const elapsed=Math.floor((Date.now()-_gymSessionStart)/1000);
+  if(elapsed<60){
+    // Less than 1 min — likely accidental
+    if(!confirm('Check out already? Session is only '+_fmtDur(elapsed)+' long.'))return;
+  }
+  _doCheckout();
+}
+
+function _doCheckout(){
+  if(!_gymSessionStart)return;
+  const elapsed=Math.floor((Date.now()-_gymSessionStart)/1000);
+  clearInterval(_gymTimerInterval);_gymTimerInterval=null;
+  const checkInTime=new Date(_gymSessionStart);
+  const checkOutTime=new Date();
+  _gymSessionStart=null;
+  localStorage.removeItem('ll_gym_session_start');
+
+  const entry={
+    id:'gym'+Date.now(),
+    date:todayStr(),
+    checkIn:_fmtTime(checkInTime),
+    checkOut:_fmtTime(checkOutTime),
+    duration:elapsed,
+    durStr:_fmtDur(elapsed)
+  };
+
+  const prefs={...getPrefs()};
+  prefs.gymLog=prefs.gymLog||[];
+  prefs.gymLog.unshift(entry);
+  if(prefs.gymLog.length>180)prefs.gymLog=prefs.gymLog.slice(0,180);
+  window._prefs=prefs;
+  window._savePrefs(prefs);
+
+  // Show undo toast
+  _gymUndoEntry=entry;
+  showGymCheckoutUndo(entry);
+  renderToday();
+}
+
+function showGymCheckoutUndo(entry){
+  let el=document.getElementById('gymUndoToast');
+  if(el)el.remove();
+  const t=document.createElement('div');
+  t.id='gymUndoToast';
+  t.style.cssText='position:fixed;bottom:150px;left:50%;transform:translateX(-50%);background:var(--s1);color:var(--text);border:1px solid var(--border2);font-size:13px;padding:11px 8px 11px 16px;border-radius:14px;z-index:600;display:flex;align-items:center;gap:10px;box-shadow:0 4px 24px rgba(0,0,0,0.5);white-space:nowrap;animation:fadeUp 0.3s both;';
+  // Build undo toast via DOM
+  const msgSpan=document.createElement('span');
+  msgSpan.innerHTML='💪 <b>'+entry.durStr+'</b> · '+entry.checkIn+' – '+entry.checkOut;
+  const undoBtn=document.createElement('button');
+  undoBtn.textContent='UNDO';
+  undoBtn.style.cssText='background:var(--acc);color:#000;border:none;border-radius:8px;padding:6px 14px;font-weight:800;font-size:12px;cursor:pointer;font-family:Inter,sans-serif';
+  const undoId=entry.id;
+  undoBtn.addEventListener('click',()=>undoGymCheckout(undoId));
+  t.appendChild(msgSpan);
+  t.appendChild(undoBtn);
   // countdown bar
   const bar=document.createElement('div');
   bar.style.cssText='position:absolute;bottom:0;left:0;height:2px;background:var(--acc);border-radius:0 0 14px 14px;width:100%;transition:width 6s linear;';
