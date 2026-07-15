@@ -115,6 +115,7 @@ padding-top:env(safe-area-inset-top,0px);}
 .chip-shoulders{background:rgba(200,241,53,0.12);color:var(--acc);border:1px solid rgba(200,241,53,0.2)}
 .chip-back{background:rgba(184,125,255,0.12);color:var(--purple);border:1px solid rgba(184,125,255,0.2)}
 .chip-arms{background:rgba(90,180,255,0.12);color:var(--blue);border:1px solid rgba(90,180,255,0.2)}
+.chip-cardio{background:rgba(255,105,180,0.12);color:#ff69b4;border:1px solid rgba(255,105,180,0.2)}
 .chip-rest{background:rgba(80,80,90,0.12);color:var(--sub);border:1px solid var(--border2)}
 .today-cta{margin-top:10px;display:flex;gap:8px}
 
@@ -584,6 +585,9 @@ body.timer-active .view{padding-bottom:158px;}
           <option>Chest + Biceps</option><option>Legs</option>
           <option>Shoulders (Heavy)</option><option>Shoulders (Volume)</option>
           <option>Back + Triceps</option><option>Arms</option>
+          <option>Chest + Back</option><option>Arms (Heavy)</option><option>Shoulders</option>
+          <option>Cardio + Abs</option><option>Arms (Volume)</option>
+          <option>Arms + Abs/Cardio/Forearms</option><option>Arms + Forearms</option>
           <option>Full Body</option><option>Cardio</option><option>Other</option><option>Rest</option>
         </select>
       </div>
@@ -750,11 +754,11 @@ body.timer-active .view{padding-bottom:158px;}
     <div class="modal-handle"></div>
     <div class="modal-title">Workout Split</div>
     <div class="split-opt" id="splitOptA" onclick="setSplit('A')">
-      <div><div class="split-opt-name">Option A — Rest Sunday</div><div class="split-opt-sub">Mon–Sat active · Sun rest</div></div>
+      <div><div class="split-opt-name">Split A</div><div class="split-opt-sub">Chest+Biceps · Legs · Shoulders · Back+Triceps · Arms+Abs/Cardio/Forearms</div></div>
       <span class="split-check">✓</span>
     </div>
     <div class="split-opt" id="splitOptB" onclick="setSplit('B')">
-      <div><div class="split-opt-name">Option B — Rest Saturday</div><div class="split-opt-sub">Mon–Fri + Sun active · Sat rest</div></div>
+      <div><div class="split-opt-name">Split B</div><div class="split-opt-sub">Chest+Biceps · Back+Triceps · Shoulders · Cardio+Abs · Arms+Forearms</div></div>
       <span class="split-check">✓</span>
     </div>
     <div class="split-opt" id="splitOptC" onclick="setSplit('C')">
@@ -800,6 +804,8 @@ body.timer-active .view{padding-bottom:158px;}
         <option>Chest + Biceps</option><option>Legs</option>
         <option>Shoulders (Heavy)</option><option>Shoulders (Volume)</option>
         <option>Back + Triceps</option><option>Arms</option>
+        <option>Chest + Back</option><option>Arms (Heavy)</option><option>Shoulders</option>
+        <option>Cardio + Abs</option><option>Arms (Volume)</option>
       </select>
     </div>
     <div style="display:flex;gap:8px">
@@ -1040,10 +1046,54 @@ const getSessions=()=>window._sessions;
 const getPrefs=()=>window._prefs;
 const getCustom=()=>window._customMachines;
 
-const SPLITS={
-  A:{label:'Split A · Sun Rest',days:{1:'Chest + Biceps',2:'Legs',3:'Shoulders (Heavy)',4:'Back + Triceps',5:'Arms',6:'Shoulders (Volume)',0:'Rest'}},
-  B:{label:'Split B · Sat Rest',days:{1:'Chest + Biceps',2:'Legs',3:'Shoulders (Heavy)',4:'Back + Triceps',5:'Arms',6:'Rest',0:'Shoulders (Volume)'}}
+// Mon–Fri core for each split; weekend (Sat/Sun) is a swappable Rest/Legs pair
+const SPLIT_BASE={
+  A:{mon:'Chest + Biceps',tue:'Legs',wed:'Shoulders (Heavy)',thu:'Back + Triceps',fri:'Arms + Abs/Cardio/Forearms'},
+  B:{mon:'Chest + Biceps',tue:'Back + Triceps',wed:'Shoulders (Heavy)',thu:'Cardio + Abs',fri:'Arms + Forearms'}
 };
+
+// Each split has its own weekend swap PAIR (the two workouts that trade places on Sat/Sun)
+const WEEKEND_SWAP_PARTNER={A:'Shoulders (Volume)',B:'Legs'};
+
+function getWeekendVariant(key){
+  const p=getPrefs();
+  const store=p.weekendVariant||{};
+  return store[key]||'sunRest'; // default: Sunday rest, Saturday = swap partner
+}
+
+function setWeekendVariant(key,variant){
+  const prefs={...getPrefs()};
+  prefs.weekendVariant=prefs.weekendVariant||{};
+  prefs.weekendVariant[key]=variant;
+  window._prefs=prefs;
+  try{localStorage.setItem('ll_cache_prefs',JSON.stringify(prefs));}catch(e){}
+  window._savePrefs(prefs);
+  renderSplitModal();renderToday();renderWeekStrip();
+}
+
+function buildSplitDays(key){
+  const base=SPLIT_BASE[key]||SPLIT_BASE.A;
+  const days={1:base.mon,2:base.tue,3:base.wed,4:base.thu,5:base.fri};
+  const variant=getWeekendVariant(key);
+  const partner=WEEKEND_SWAP_PARTNER[key]||'Legs';
+  if(variant==='satRest'){days[6]='Rest';days[0]=partner;}
+  else {days[0]='Rest';days[6]=partner;}
+  return days;
+}
+
+function getSplitLabel(key){
+  const variant=getWeekendVariant(key);
+  const weekendDesc=variant==='satRest'?'Sat Rest':'Sun Rest';
+  return (key==='A'?'Split A':'Split B')+' · '+weekendDesc;
+}
+
+// Backward-compatible SPLITS accessor (some code still reads SPLITS[key].days)
+const SPLITS=new Proxy({},{
+  get(_,key){
+    if(key==='A'||key==='B') return {label:getSplitLabel(key),days:buildSplitDays(key)};
+    return undefined;
+  }
+});
 const DAY_NAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const BASE_MACHINES={
@@ -1053,6 +1103,13 @@ const BASE_MACHINES={
   'Shoulders (Volume)':[{n:'Machine Lateral Raise',m:'Side Delts'},{n:'Cable Lateral Raise',m:'Side Delts'},{n:'Cable Front Raise',m:'Front Delts'},{n:'Dumbbell Shoulder Press',m:'Front & Side Delts'},{n:'Reverse Pec Deck (Rear Fly)',m:'Rear Delts'}],
   'Legs':[{n:'Leg Press Machine',m:'Quads / Glutes'},{n:'Bothway Squat (Front)',m:'Quads'},{n:'Seated Leg Curl',m:'Hamstrings'},{n:'Seated Leg Extension',m:'Quads'},{n:'Seated Calf Raises',m:'Calves'}],
   'Arms':[{n:'Incline Dumbbell Curl',m:'Biceps Long Head'},{n:'Preacher Curl Machine',m:'Biceps Short Head'},{n:'Cable Pushdown',m:'Triceps Lateral & Medial Head'},{n:'Overhead Cable Triceps Extension',m:'Triceps Long Head'},{n:'Reverse Grip Curl (EZ Bar)',m:'Brachialis'}],
+  'Chest + Back':[{n:'Incline Chest Press Machine',m:'Upper Chest'},{n:'Flat Dual Smith Press',m:'Mid Chest'},{n:'Pec Fly Machine',m:'Overall Chest'},{n:'Lat Pulldown Machine',m:'Lats'},{n:'Seated Mid Back Row Machine',m:'Rhomboids / Mid Back'},{n:'Chest-Supported Upper Back Row',m:'Upper Back'}],
+  'Arms (Heavy)':[{n:'Incline Dumbbell Curl',m:'Biceps Long Head'},{n:'Preacher Curl Machine',m:'Biceps Short Head'},{n:'Cable Pushdown',m:'Triceps Lateral & Medial Head'},{n:'Overhead Cable Triceps Extension',m:'Triceps Long Head'},{n:'Reverse Grip Curl (EZ Bar)',m:'Brachialis'}],
+  'Shoulders':[{n:'Machine Lateral Raise',m:'Side Delts'},{n:'Cable Lateral Raise',m:'Side Delts'},{n:'Cable Front Raise',m:'Front Delts'},{n:'Dumbbell Shoulder Press',m:'Front & Side Delts'},{n:'Reverse Pec Deck (Rear Fly)',m:'Rear Delts'}],
+  'Cardio + Abs':[{n:'Treadmill / Cardio Machine',m:'Cardio'},{n:'Ab Crunch Machine',m:'Abs'},{n:'Hanging Leg Raise',m:'Abs'},{n:'Cable Woodchopper',m:'Abs'}],
+  'Arms + Abs/Cardio/Forearms':[{n:'Incline Dumbbell Curl',m:'Biceps Long Head'},{n:'Preacher Curl Machine',m:'Biceps Short Head'},{n:'Cable Pushdown',m:'Triceps Lateral & Medial Head'},{n:'Overhead Cable Triceps Extension',m:'Triceps Long Head'},{n:'Reverse Grip Curl (EZ Bar)',m:'Brachialis'},{n:'Ab Crunch Machine',m:'Abs'},{n:'Hanging Leg Raise',m:'Abs'},{n:'Treadmill / Cardio Machine',m:'Cardio'}],
+  'Arms + Forearms':[{n:'Incline Dumbbell Curl',m:'Biceps Long Head'},{n:'Preacher Curl Machine',m:'Biceps Short Head'},{n:'Cable Pushdown',m:'Triceps Lateral & Medial Head'},{n:'Overhead Cable Triceps Extension',m:'Triceps Long Head'},{n:'Reverse Grip Curl (EZ Bar)',m:'Brachialis'}],
+  'Arms (Volume)':[{n:'Incline Dumbbell Curl',m:'Biceps Long Head'},{n:'Preacher Curl Machine',m:'Biceps Short Head'},{n:'Cable Pushdown',m:'Triceps Lateral & Medial Head'},{n:'Overhead Cable Triceps Extension',m:'Triceps Long Head'},{n:'Reverse Grip Curl (EZ Bar)',m:'Brachialis'}],
   'Full Body':[],'Other':[]
 };
 const VOL_COLORS={'Upper Chest':'#ff7878','Mid Chest':'#ff5252','Overall Chest':'#ff9898','Biceps Long Head':'#5bb8ff','Biceps Short Head':'#3a9ae8','Brachialis':'#2080cc','Lats':'#b87fff','Rhomboids / Mid Back':'#9a60e0','Upper Back':'#7a40c0','Triceps Lateral & Medial Head':'#52e09c','Triceps Long Head':'#30c07a','Side Delts':'#d4f53c','Front Delts':'#a8c22e','Rear Delts':'#7a8f1c','Quads':'#ff9248','Quads / Glutes':'#ff7a20','Hamstrings':'#e06030','Calves':'#c04820','Lats / Upper Back':'#c097ff','Front & Side Delts':'#bfe030'};
@@ -1082,6 +1139,7 @@ function toast(msg,type=''){
 
 function chipClass(w){
   if(!w||w==='Rest')return'chip-rest';
+  if(w.includes('Cardio'))return'chip-cardio';
   if(w.includes('Chest')||w.includes('Biceps'))return'chip-chest';
   if(w.includes('Leg'))return'chip-legs';
   if(w.includes('Shoulder'))return'chip-shoulders';
@@ -1355,12 +1413,11 @@ function renderToday(){
     const ds=todayStr();
     const p=getPrefs()||{split:'A'};
     const splitKey=p.split||'A';
-    const splitObj=SPLITS[splitKey]||SPLITS['A'];
 
     // Update split badge
     const badge=document.getElementById('splitBadge');
-    const badgeLabels={A:'Split A · Sun Rest',B:'Split B · Sat Rest',C:'Custom Split'};
-    if(badge) badge.textContent=badgeLabels[splitKey]||'Split A';
+    const badgeText=splitKey==='C'?'Custom Split':getSplitLabel(splitKey);
+    if(badge) badge.textContent=badgeText;
 
     // Get today's workout
     const overrides=p.dayOverrides||{};
@@ -2249,7 +2306,7 @@ function copyExport(){
 
 // ── DAY OVERRIDE ──
 let _overrideDate=null,_overridePending=null;
-const WORKOUT_LIST=['Chest + Biceps','Legs','Shoulders (Heavy)','Shoulders (Volume)','Back + Triceps','Arms','Full Body','Cardio','Rest'];
+const WORKOUT_LIST=['Chest + Biceps','Legs','Shoulders (Heavy)','Shoulders (Volume)','Back + Triceps','Arms','Chest + Back','Arms (Heavy)','Shoulders','Cardio + Abs','Arms (Volume)','Arms + Abs/Cardio/Forearms','Arms + Forearms','Full Body','Cardio','Rest'];
 function openOverrideModal(ds,currentWorkout){
   _overrideDate=ds;_overridePending=currentWorkout;
   const d=new Date(ds+'T12:00:00');
@@ -2287,18 +2344,17 @@ function clearOverride(){
 }
 
 // ── SPLIT ──
-const WORKOUT_OPTS=['Chest + Biceps','Legs','Shoulders (Heavy)','Shoulders (Volume)','Back + Triceps','Arms','Full Body','Cardio','Rest'];
+const WORKOUT_OPTS=['Chest + Biceps','Legs','Shoulders (Heavy)','Shoulders (Volume)','Back + Triceps','Arms','Chest + Back','Arms (Heavy)','Shoulders','Cardio + Abs','Arms (Volume)','Arms + Abs/Cardio/Forearms','Arms + Forearms','Full Body','Cardio','Rest'];
 const DAY_FULL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
 function setSplit(s){
   const prefs={...getPrefs(),split:s};
   window._prefs=prefs;
-  // cache immediately so renderToday/renderWeekStrip sees new split instantly
   try{localStorage.setItem('ll_cache_prefs',JSON.stringify(prefs));}catch(e){}
   window._savePrefs(prefs);
   renderSplitModal();renderToday();renderWeekStrip();
-  const labels={A:'Split A · Sun Rest',B:'Split B · Sat Rest',C:'Custom Split'};
-  document.getElementById('splitBadge').textContent=labels[s]||'Split A';
+  const badgeText=s==='C'?'Custom Split':getSplitLabel(s);
+  document.getElementById('splitBadge').textContent=badgeText;
 }
 
 function getCustomSplitDays(){
@@ -2314,10 +2370,10 @@ function getCustomSplitDays(){
 function getWorkoutForDow(dow){
   try{
     const p=getPrefs()||{split:'A'};
-    if(p.split==='C') return getCustomSplitDays()[parseInt(dow)]||'Rest';
-    const split=SPLITS[p.split||'A'];
-    if(!split)return 'Rest';
-    return split.days[parseInt(dow)]||'Rest';
+    const key=p.split||'A';
+    if(key==='C') return getCustomSplitDays()[parseInt(dow)]||'Rest';
+    const days=buildSplitDays(key);
+    return days[parseInt(dow)]||'Rest';
   }catch(e){return 'Rest';}
 }
 
@@ -2330,7 +2386,6 @@ function renderSplitModal(){
   const dnames=DAY_FULL;
 
   if(currentSplit==='C'){
-    // Show read-only preview + editable selects
     const customDays=getCustomSplitDays();
     document.getElementById('splitDayList').innerHTML='';
     document.getElementById('customSplitEditor').style.display='block';
@@ -2345,8 +2400,20 @@ function renderSplitModal(){
       </div>`).join('')}`;
   } else {
     document.getElementById('customSplitEditor').style.display='none';
-    const split=SPLITS[currentSplit];
-    document.getElementById('splitDayList').innerHTML=Object.entries(split.days).map(([dow,w])=>`
+    const variant=getWeekendVariant(currentSplit);
+    const days=buildSplitDays(currentSplit);
+    document.getElementById('splitDayList').innerHTML=
+      `<div style="background:var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px 14px;margin-bottom:12px">
+        <div style="font-size:10px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">Weekend Arrangement</div>
+        <div style="display:flex;gap:8px">
+          <button onclick="setWeekendVariant('${currentSplit}','sunRest')" style="flex:1;padding:9px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:var(--transition);border:1px solid ${variant==='sunRest'?'var(--acc)':'var(--border2)'};background:${variant==='sunRest'?'var(--acc-dim)':'var(--s3)'};color:${variant==='sunRest'?'var(--acc)':'var(--sub)'}">Sun Rest · Sat ${WEEKEND_SWAP_PARTNER[currentSplit]}</button>
+          <button onclick="setWeekendVariant('${currentSplit}','satRest')" style="flex:1;padding:9px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:var(--transition);border:1px solid ${variant==='satRest'?'var(--acc)':'var(--border2)'};background:${variant==='satRest'?'var(--acc-dim)':'var(--s3)'};color:${variant==='satRest'?'var(--acc)':'var(--sub)'}">Sat Rest · Sun ${WEEKEND_SWAP_PARTNER[currentSplit]}</button>
+        </div>
+      </div>`+
+      Object.entries(days).sort((a,b)=>{
+        const order=[1,2,3,4,5,6,0]; // Mon..Sun display order
+        return order.indexOf(parseInt(a[0]))-order.indexOf(parseInt(b[0]));
+      }).map(([dow,w])=>`
       <div class="modal-day-row">
         <span class="modal-day-name">${dnames[parseInt(dow)]}</span>
         <span class="workout-chip ${chipClass(w)}" style="font-size:10px;padding:3px 10px">${w}</span>
@@ -3201,3 +3268,5 @@ function buildGymTimerRow(){
 })();
 
 </script>
+</body>
+</html>
